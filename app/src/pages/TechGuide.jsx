@@ -239,6 +239,83 @@ const SECTIONS = [
     ),
   },
   {
+    id: 'members',
+    title: 'Adding & removing QA members',
+    summary: 'How to give a colleague access — and take it away.',
+    body: (
+      <>
+        <p>
+          Access is members-only. Anyone can sign in with their Google account, but they only
+          see the dashboard if there is a matching document in the Firestore{' '}
+          <code>members</code> collection. The document ID is the person’s Firebase Auth{' '}
+          <strong>UID</strong> — not their email. So adding a member is a two-step dance: they
+          sign in once (which creates their Auth user and shows them their UID), then you add
+          that UID to <code>members</code>.
+        </p>
+        <p className="tip">
+          The whole thing takes about a minute per person. Have your colleague to hand (or on a
+          call) so they can read you their UID off the “Access pending” screen.
+        </p>
+        <p>
+          <strong>To add a colleague:</strong>
+        </p>
+        <ol>
+          <li>
+            Ask them to open the dashboard at{' '}
+            <code>https://lev-charity.netlify.app</code> and click{' '}
+            <strong>Sign in with Google</strong>.
+          </li>
+          <li>
+            They’ll land on an <strong>“Access pending”</strong> screen. It shows their{' '}
+            <strong>UID</strong> and email — ask them to copy the UID and send it to you. (You
+            can also find it later in the Firebase Console under{' '}
+            <strong>Authentication → Users</strong>.)
+          </li>
+          <li>
+            Open the{' '}
+            <a
+              href="https://console.firebase.google.com/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Firebase Console
+            </a>{' '}
+            for this project → <strong>Firestore Database</strong>.
+          </li>
+          <li>
+            Open the <code>members</code> collection (or create it the first time:{' '}
+            <strong>Start collection</strong> → Collection ID <code>members</code>).
+          </li>
+          <li>
+            Click <strong>Add document</strong>. For the <strong>Document ID</strong>, paste
+            their <strong>UID</strong> exactly (no spaces).
+          </li>
+          <li>
+            Add a couple of fields so you remember who it is — e.g. a <code>email</code>{' '}
+            (string) and a <code>name</code> (string). These are just for your reference; the
+            app only checks that the document <em>exists</em>.
+          </li>
+          <li>
+            Click <strong>Save</strong>. Tell them to refresh — they’re in.
+          </li>
+        </ol>
+        <p>
+          <strong>To remove someone:</strong> open the <code>members</code> collection, find
+          the document whose ID is their UID, and delete it. They’re locked out on their next
+          page load. For a clean break you can also disable or delete their user under{' '}
+          <strong>Authentication → Users</strong> in the console, which signs them out and
+          stops them signing back in.
+        </p>
+        <p className="tip">
+          Membership is binary — everyone who’s in has the same full access (create, run,
+          delete tests and runs). There are no per-person roles yet. If you ever need
+          read-only or limited roles, that’s a future change to <code>isMember</code> and the
+          Firestore security rules.
+        </p>
+      </>
+    ),
+  },
+  {
     id: 'local',
     title: 'Running & extending locally',
     summary: 'For developers touching the runner.',

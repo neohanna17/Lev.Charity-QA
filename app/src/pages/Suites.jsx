@@ -315,15 +315,52 @@ function TestPicker({ tests, selected, onToggle, onBulk }) {
   const filteredIds = filtered.map((t) => t.id);
   const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selected.has(id));
 
+  // The tests currently in the suite, in a stable order, so they can be
+  // reviewed and removed without hunting through the filtered picker below.
+  const chosen = tests.filter((t) => selected.has(t.id));
+
   return (
     <div className="rounded-lg border border-ink-600 bg-white p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="label mb-0 mr-auto">
-          Tests in this suite
-          <span className="ml-2 font-normal normal-case tracking-normal text-gray-400">
-            {selected.size} selected
-          </span>
+      <div className="label mb-1">
+        Tests in this suite
+        <span className="ml-2 font-normal normal-case tracking-normal text-gray-400">
+          {selected.size} selected
+        </span>
+      </div>
+
+      {chosen.length === 0 ? (
+        <p className="mb-3 text-xs text-gray-400">
+          None yet — tick tests below to add them.
+        </p>
+      ) : (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {chosen.map((t) => (
+            <span
+              key={t.id}
+              className="inline-flex items-center gap-1 rounded-full border border-ink-600 bg-gray-50 py-0.5 pl-2.5 pr-1 text-xs"
+            >
+              <span className="max-w-[180px] truncate">{t.name}</span>
+              <button
+                onClick={() => onToggle(t.id)}
+                className="grid h-4 w-4 place-items-center rounded-full text-gray-400 hover:bg-red-500/10 hover:text-red-600"
+                title={`Remove "${t.name}" from this suite`}
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+          <button
+            onClick={() => onBulk([...selected], false)}
+            className="rounded-full px-2 py-0.5 text-xs text-gray-400 hover:text-red-600"
+            title="Remove all tests from this suite"
+          >
+            Remove all
+          </button>
         </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="label mb-0 mr-auto">Add tests</div>
         <select
           className="input max-w-[160px] py-1 text-sm"
           value={module}
