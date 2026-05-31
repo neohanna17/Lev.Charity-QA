@@ -18,7 +18,19 @@ export const STEP_TYPES = {
 // Modules group tests by area of the site. These are just starting
 // suggestions — anyone can type a new module name on a test and it will
 // show up as a group and a suggestion thereafter.
-export const DEFAULT_MODULES = ['Ecards', 'Campaigns', 'Donations'];
+export const DEFAULT_MODULES = [
+  'Ecards',
+  'Campaigns',
+  'Donations',
+  'Page Builder',
+  'Transactions',
+  'Settings',
+  'Permissions',
+  'Widgets',
+  'My Account',
+  'Receipts',
+  'CRM',
+];
 
 export function moduleOf(test) {
   return (test?.module || '').trim() || 'Uncategorized';
