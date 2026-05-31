@@ -91,6 +91,7 @@ export async function enqueueRun(test, triggeredBy, opts = {}) {
     updateBaselines: !!opts.updateBaselines,
     fromStep: Number.isInteger(opts.fromStep) ? opts.fromStep : null,
     toStep: Number.isInteger(opts.toStep) ? opts.toStep : null,
+    setupComponentId: opts.setupComponentId || null,
     steps: [],
     durationMs: 0,
     browser: 'chromium',

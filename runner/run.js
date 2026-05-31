@@ -188,13 +188,20 @@ async function executeRun(runId) {
   const sliced = allSteps.slice(from, to + 1);
   const partial = from > 0 || to < allSteps.length - 1;
 
+  // A suite can prepend a setup component (e.g. Log in) to every test. Skipped
+  // on partial runs, where step indices must match the test's own steps.
+  const hasSetup = !!run.setupComponentId && !partial;
+  const withSetup = hasSetup
+    ? [{ type: 'component', componentId: run.setupComponentId }, ...sliced]
+    : sliced;
+
   // Expand any reusable-component steps into their underlying steps.
-  const effectiveSteps = await expandComponents(sliced);
+  const effectiveSteps = await expandComponents(withSetup);
   const effectiveTest = { ...test, steps: effectiveSteps };
 
   // Visual baselines are keyed by step index, which only lines up on a full
-  // run, so we skip visual comparison on partial runs.
-  const updateBaselines = !!run.updateBaselines && !partial;
+  // run with no prepended setup, so we skip visual comparison otherwise.
+  const updateBaselines = !!run.updateBaselines && !partial && !hasSetup;
   await runRef.update({
     status: 'running',
     testName: test.name,
@@ -231,7 +238,7 @@ async function executeRun(runId) {
       try {
         const shot = await pg.screenshot({ fullPage: false });
         result.screenshotUrl = await uploadScreenshot(runId, index, shot);
-        if (!partial) {
+        if (!partial && !hasSetup) {
           try {
             result.visual = await compareVisual({
               testId: test.id,
@@ -332,7 +339,7 @@ async function pool(items, size, worker) {
 
 // Enqueue run docs for the given tests and execute them in parallel
 // (RUN_CONCURRENCY at a time, default 3). Returns the failure count.
-async function enqueueAndRun(tests, triggeredBy) {
+async function enqueueAndRun(tests, triggeredBy, setupForTest) {
   if (tests.length === 0) return 0;
   const concurrency = Number(process.env.RUN_CONCURRENCY) || 3;
   console.log(`Running ${tests.length} test(s), ${concurrency} at a time (${triggeredBy})…`);
@@ -347,6 +354,7 @@ async function enqueueAndRun(tests, triggeredBy) {
       startedAt: FieldValue.serverTimestamp(),
       finishedAt: null,
       triggeredBy,
+      setupComponentId: (setupForTest && setupForTest(test)) || null,
       steps: [],
       durationMs: 0,
       browser: 'chromium',
@@ -389,6 +397,7 @@ async function runScheduledSuites() {
   const suites = suitesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
   const dueTestIds = new Set();
+  const setupByTest = new Map(); // testId → suite's setup component, if any
   const ranSuites = [];
   for (const suite of suites) {
     const expr = (suite.schedule || '').trim();
@@ -405,7 +414,11 @@ async function runScheduledSuites() {
     const last = suite.lastScheduledAt?.toMillis ? suite.lastScheduledAt.toMillis() : 0;
     if (prev.getTime() <= last) continue; // already ran this occurrence
 
-    (suite.testIds || []).forEach((id) => dueTestIds.add(id));
+    (suite.testIds || []).forEach((id) => {
+      dueTestIds.add(id);
+      if (suite.setupComponentId && !setupByTest.has(id))
+        setupByTest.set(id, suite.setupComponentId);
+    });
     ranSuites.push({ id: suite.id, name: suite.name, occurrence: prev });
   }
 
@@ -424,7 +437,7 @@ async function runScheduledSuites() {
     }
   }
 
-  const failures = await enqueueAndRun(tests, 'schedule');
+  const failures = await enqueueAndRun(tests, 'schedule', (t) => setupByTest.get(t.id) || null);
 
   // Mark each due suite's occurrence as handled so it won't re-fire.
   for (const s of ranSuites) {

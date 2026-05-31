@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
-import { watchSuites, watchTests, createSuite, saveSuite, deleteSuite } from '../lib/db';
+import {
+  watchSuites,
+  watchTests,
+  watchComponents,
+  createSuite,
+  saveSuite,
+  deleteSuite,
+} from '../lib/db';
 import { triggerRun } from '../lib/triggerRun';
 import Spinner from '../components/Spinner';
 import {
@@ -14,14 +21,17 @@ import {
 export default function Suites() {
   const [suites, setSuites] = useState(null);
   const [tests, setTests] = useState([]);
+  const [components, setComponents] = useState([]);
   const [running, setRunning] = useState(null);
 
   useEffect(() => {
     const u1 = watchSuites(setSuites);
     const u2 = watchTests(setTests);
+    const u3 = watchComponents(setComponents);
     return () => {
       u1();
       u2();
+      u3();
     };
   }, []);
 
@@ -35,7 +45,8 @@ export default function Suites() {
     setRunning(suite.id);
     try {
       const chosen = tests.filter((t) => (suite.testIds || []).includes(t.id));
-      for (const t of chosen) await triggerRun(t);
+      const opts = suite.setupComponentId ? { setupComponentId: suite.setupComponentId } : {};
+      for (const t of chosen) await triggerRun(t, opts);
       alert(`Queued ${chosen.length} run(s).`);
     } catch (e) {
       alert(e.message);
@@ -67,6 +78,7 @@ export default function Suites() {
             key={s.id}
             suite={s}
             tests={tests}
+            components={components}
             running={running === s.id}
             onRun={() => runSuite(s)}
           />
@@ -76,7 +88,7 @@ export default function Suites() {
   );
 }
 
-function SuiteCard({ suite, tests, running, onRun }) {
+function SuiteCard({ suite, tests, components, running, onRun }) {
   const [name, setName] = useState(suite.name);
   const selected = new Set(suite.testIds || []);
 
@@ -109,6 +121,26 @@ function SuiteCard({ suite, tests, running, onRun }) {
       </div>
 
       <SchedulePicker suite={suite} />
+
+      <div className="mt-3">
+        <label className="label">Run this component first (e.g. Log in)</label>
+        <select
+          className="input max-w-sm"
+          value={suite.setupComponentId || ''}
+          onChange={(e) => saveSuite(suite.id, { setupComponentId: e.target.value || null })}
+        >
+          <option value="">— none —</option>
+          {components.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name} ({c.steps?.length || 0} steps)
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-gray-500">
+          Prepended to every test in this suite at run time — handy for logging in once per test
+          without editing each one.
+        </p>
+      </div>
 
       <div className="mt-3">
         <div className="label">Tests in this suite</div>
