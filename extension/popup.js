@@ -65,20 +65,24 @@ $('stop').onclick = async () => {
   render();
 };
 
-$('send').onclick = async () => {
+async function sendToDashboard(kind) {
   const { rl_dashboard_url } = await chrome.storage.local.get('rl_dashboard_url');
   if (!rl_dashboard_url) {
     $('noDash').classList.remove('hidden');
     return;
   }
   const test = await buildTest();
+  if (kind) test.kind = kind; // 'component' → imported as a reusable component
   if (test.module) await chrome.storage.local.set({ rl_last_module: test.module });
   const payload = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(test)))));
   const url = rl_dashboard_url.replace(/\/+$/, '') + '/#import=' + payload;
   chrome.tabs.create({ url });
   await ask({ type: 'CLEAR' });
   window.close();
-};
+}
+
+$('send').onclick = () => sendToDashboard();
+$('sendComponent').onclick = () => sendToDashboard('component');
 
 $('copy').onclick = async () => {
   const test = await buildTest();

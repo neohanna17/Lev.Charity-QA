@@ -7,6 +7,7 @@ import {
   watchRunsForTest,
   watchComponents,
   createComponent,
+  deleteRun,
 } from '../lib/db';
 import { triggerRun } from '../lib/triggerRun';
 import { DEFAULT_MODULES, moduleOf } from '../lib/schema';
@@ -218,19 +219,24 @@ export default function TestDetail() {
               <div className="p-5 text-center text-sm text-gray-500">No runs yet</div>
             )}
             {runs.map((r) => (
-              <Link
+              <div
                 key={r.id}
-                to={`/runs/${r.id}`}
-                className="flex items-center justify-between px-3 py-2.5 hover:bg-ink-700/50"
+                className="group flex items-center justify-between px-3 py-2.5 hover:bg-ink-700/50"
               >
-                <div>
+                <Link to={`/runs/${r.id}`} className="min-w-0 flex-1">
                   <StatusBadge status={r.status} />
                   <div className="mt-1 text-xs text-gray-500">
                     {timeAgo(r.startedAt)} · {fmtDuration(r.durationMs)}
                   </div>
-                </div>
-                <span className="text-gray-600">›</span>
-              </Link>
+                </Link>
+                <button
+                  onClick={() => confirm('Delete this run?') && deleteRun(r.id)}
+                  title="Delete run"
+                  className="ml-2 rounded-md px-2 py-1 text-xs text-gray-400 opacity-0 transition-opacity hover:bg-red-500/10 hover:text-red-600 group-hover:opacity-100"
+                >
+                  ✕
+                </button>
+              </div>
             ))}
           </div>
         </section>

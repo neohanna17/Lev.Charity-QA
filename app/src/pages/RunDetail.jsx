@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { watchRun, getTest } from '../lib/db';
+import { watchRun, getTest, deleteRun } from '../lib/db';
 import { triggerRun } from '../lib/triggerRun';
 import StatusBadge from '../components/StatusBadge';
 import Spinner from '../components/Spinner';
@@ -14,6 +14,7 @@ export default function RunDetail() {
   const [shot, setShot] = useState(null);
   const [bugOpen, setBugOpen] = useState(false);
   const [rerunning, setRerunning] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => watchRun(id, setRun), [id]);
 
@@ -44,6 +45,20 @@ export default function RunDetail() {
     }
   }
 
+  async function handleDelete() {
+    if (!confirm('Delete this run? Its video, trace and screenshots will be cleaned up automatically. This cannot be undone.'))
+      return;
+    setDeleting(true);
+    try {
+      const { testId } = run;
+      await deleteRun(id);
+      navigate(testId ? `/tests/${testId}` : '/runs');
+    } catch (e) {
+      alert(e.message);
+      setDeleting(false);
+    }
+  }
+
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -65,6 +80,11 @@ export default function RunDetail() {
           {!pending && (
             <button onClick={handleRerun} disabled={rerunning} className="btn-primary py-1.5 px-3 text-xs">
               {rerunning ? 'Starting…' : '↻ Re-run'}
+            </button>
+          )}
+          {!pending && (
+            <button onClick={handleDelete} disabled={deleting} className="btn-danger py-1.5 px-3 text-xs">
+              {deleting ? 'Deleting…' : 'Delete run'}
             </button>
           )}
         </div>

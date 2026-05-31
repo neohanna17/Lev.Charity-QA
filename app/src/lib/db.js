@@ -78,6 +78,12 @@ export function watchRun(id, cb) {
   );
 }
 
+// Delete a run document. Stored artifacts (video/trace/screenshots) under the
+// runs/{id}/ Storage prefix are reaped by the runner's retention sweep.
+export async function deleteRun(id) {
+  await deleteDoc(doc(db, 'runs', id));
+}
+
 // Enqueue a run document. The GitHub Actions runner picks up "queued" runs
 // (or is targeted directly by id) and updates this doc as it progresses.
 export async function enqueueRun(test, triggeredBy, opts = {}) {

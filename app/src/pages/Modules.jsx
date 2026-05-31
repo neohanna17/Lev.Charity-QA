@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { watchTests, watchRecentRuns, createTest } from '../lib/db';
+import { watchTests, watchRecentRuns, createTest, createComponent } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import Spinner from '../components/Spinner';
 import { moduleOf, DEFAULT_MODULES } from '../lib/schema';
@@ -28,6 +28,15 @@ export default function Modules() {
       try {
         const json = decodeURIComponent(escape(atob(decodeURIComponent(m[1]))));
         const rec = JSON.parse(json);
+        window.history.replaceState(null, '', window.location.pathname);
+        if (rec.kind === 'component') {
+          await createComponent({
+            name: rec.name || 'Recorded component',
+            steps: rec.steps || [],
+          });
+          navigate('/components');
+          return;
+        }
         const id = await createTest({
           name: rec.name || 'Recorded test',
           module: rec.module || '',
@@ -35,7 +44,6 @@ export default function Modules() {
           steps: rec.steps || [],
           createdBy: user?.email || null,
         });
-        window.history.replaceState(null, '', window.location.pathname);
         navigate(`/tests/${id}`);
       } catch (e) {
         alert('Could not import recording: ' + e.message);

@@ -109,6 +109,12 @@ const SECTIONS = [
           — review and save it. (You can also <strong>Copy JSON</strong> or{' '}
           <strong>Download</strong> if you’d rather import it manually.)
         </p>
+        <p>
+          Recording something you’ll reuse — like the login flow? Press{' '}
+          <strong>Save as reusable component →</strong> instead. It lands on the{' '}
+          <Link to="/components">Components</Link> page as a building block you can drop into
+          any test.
+        </p>
         <p className="tip">
           Tip: don’t type real passwords while recording. Record the login flow, then swap
           the password field for a secure token — see <em>Logging in safely</em> below.
@@ -171,7 +177,11 @@ const SECTIONS = [
             (it skips any component steps and asks for a name), <em>or</em>
           </li>
           <li>
-            Go to <Link to="/components">Components</Link> and create one from scratch.
+            Go to <Link to="/components">Components</Link> and create one from scratch, <em>or</em>
+          </li>
+          <li>
+            In the Chrome recorder, after recording, press{' '}
+            <strong>Save as reusable component →</strong>.
           </li>
         </ol>
         <p>
