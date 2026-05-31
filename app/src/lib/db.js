@@ -32,6 +32,7 @@ export async function createTest(data) {
   const ref = await addDoc(collection(db, 'tests'), {
     name: data.name || 'Untitled test',
     description: data.description || '',
+    module: data.module || '',
     startUrl: data.startUrl || '',
     steps: data.steps || [],
     tags: data.tags || [],

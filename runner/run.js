@@ -99,12 +99,46 @@ async function drainQueue() {
   }
 }
 
+// Enqueue and execute every active test. Used by the daily scheduled job so
+// the whole suite is checked automatically without anyone clicking "Run".
+async function runAllActive() {
+  const snap = await db.collection('tests').get();
+  const tests = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((t) => t.status !== 'archived');
+  if (tests.length === 0) {
+    console.log('No active tests to run.');
+    return;
+  }
+  console.log(`Daily check: running ${tests.length} active test(s)…`);
+  let failures = 0;
+  for (const test of tests) {
+    const runRef = await db.collection('runs').add({
+      testId: test.id,
+      testName: test.name,
+      status: 'queued',
+      startedAt: FieldValue.serverTimestamp(),
+      finishedAt: null,
+      triggeredBy: 'schedule',
+      steps: [],
+      durationMs: 0,
+      browser: 'chromium',
+      error: null,
+    });
+    const outcome = await executeRun(runRef.id);
+    if (outcome === 'failed' || outcome === 'error') failures += 1;
+  }
+  if (failures > 0) process.exitCode = 1;
+}
+
 async function main() {
   const runId = process.env.RUN_ID;
   if (runId) {
     const outcome = await executeRun(runId);
     // non-zero exit on failure so the GitHub Actions job reflects it
     if (outcome === 'failed' || outcome === 'error') process.exitCode = 1;
+  } else if (process.env.RUN_ALL === '1') {
+    await runAllActive();
   } else {
     await drainQueue();
   }

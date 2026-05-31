@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getTest, saveTest, deleteTest, watchRunsForTest } from '../lib/db';
 import { triggerRun } from '../lib/triggerRun';
-import { STEP_TYPES, stepLabel, emptyStep } from '../lib/schema';
+import { STEP_TYPES, stepLabel, emptyStep, DEFAULT_MODULES } from '../lib/schema';
 import StatusBadge from '../components/StatusBadge';
 import Spinner from '../components/Spinner';
 import { timeAgo, fmtDuration } from '../lib/format';
@@ -52,6 +52,7 @@ export default function TestDetail() {
       await saveTest(id, {
         name: test.name,
         description: test.description || '',
+        module: test.module || '',
         startUrl: test.startUrl || '',
         steps: test.steps || [],
         status: test.status || 'active',
@@ -98,6 +99,21 @@ export default function TestDetail() {
             value={test.name}
             onChange={(e) => update({ name: e.target.value })}
           />
+          <div>
+            <label className="label">Module</label>
+            <input
+              className="input"
+              list="module-options"
+              placeholder="e.g. Ecards, Campaigns, Donations"
+              value={test.module || ''}
+              onChange={(e) => update({ module: e.target.value })}
+            />
+            <datalist id="module-options">
+              {DEFAULT_MODULES.map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
+          </div>
           <input
             className="input"
             placeholder="Start URL (e.g. https://lev.charity)"

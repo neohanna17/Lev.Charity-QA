@@ -15,6 +15,15 @@ export const STEP_TYPES = {
   assertUrl: { label: 'Assert URL contains', needs: ['value'] },
 };
 
+// Modules group tests by area of the site. These are just starting
+// suggestions — anyone can type a new module name on a test and it will
+// show up as a group and a suggestion thereafter.
+export const DEFAULT_MODULES = ['Ecards', 'Campaigns', 'Donations'];
+
+export function moduleOf(test) {
+  return (test?.module || '').trim() || 'Uncategorized';
+}
+
 export function stepLabel(step) {
   const def = STEP_TYPES[step.type];
   const base = def ? def.label : step.type;

@@ -12,7 +12,7 @@ on:
         description: 'Run document id (leave blank to drain all queued runs)'
         required: false
         default: ''
-  # Scheduled sweep: executes any runs sitting in the queue.
+  # Scheduled daily check: runs every active test automatically.
   schedule:
     - cron: '0 6 * * *' # daily 06:00 UTC
 
@@ -47,4 +47,6 @@ jobs:
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           # repository_dispatch payload > manual input > empty (drain queue)
           RUN_ID: ${{ github.event.client_payload.run_id || github.event.inputs.run_id }}
+          # On the daily schedule, run every active test instead of draining.
+          RUN_ALL: ${{ github.event_name == 'schedule' && '1' || '' }}
         run: node run.js
