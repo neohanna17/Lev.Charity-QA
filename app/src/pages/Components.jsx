@@ -62,7 +62,7 @@ function ComponentCard({ component, open, onToggle }) {
   return (
     <div className="card overflow-hidden">
       <div className="flex items-center gap-3 px-4 py-3">
-        <button onClick={onToggle} className="text-gray-500 hover:text-gray-200">
+        <button onClick={onToggle} className="text-gray-500 hover:text-gray-800">
           {open ? '▾' : '▸'}
         </button>
         <span className="flex-1 truncate font-medium">{component.name}</span>
@@ -76,7 +76,7 @@ function ComponentCard({ component, open, onToggle }) {
       </div>
 
       {open && (
-        <div className="space-y-4 border-t border-ink-600 bg-ink-900/40 p-4">
+        <div className="space-y-4 border-t border-ink-600 bg-gray-50 p-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="label">Name</label>

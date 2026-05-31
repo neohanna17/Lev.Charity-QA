@@ -87,18 +87,18 @@ export default function TestDetail() {
   return (
     <div>
       <div className="mb-4 flex items-center gap-2 text-sm text-gray-500">
-        <Link to="/" className="hover:text-gray-300">
+        <Link to="/" className="hover:text-gray-700">
           Modules
         </Link>
         <span>/</span>
         <Link
           to={`/modules/${encodeURIComponent(moduleOf(test))}`}
-          className="hover:text-gray-300"
+          className="hover:text-gray-700"
         >
           {moduleOf(test)}
         </Link>
         <span>/</span>
-        <span className="text-gray-300">{test.name}</span>
+        <span className="text-gray-700">{test.name}</span>
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-3">

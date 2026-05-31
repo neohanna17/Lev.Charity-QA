@@ -120,7 +120,7 @@ function SuiteCard({ suite, tests, running, onRun }) {
               className={`rounded-full border px-3 py-1 text-xs ${
                 selected.has(t.id)
                   ? 'border-brand bg-brand/15 text-brand'
-                  : 'border-ink-500 text-gray-400 hover:text-gray-200'
+                  : 'border-ink-500 text-gray-500 hover:text-gray-800'
               }`}
             >
               {t.name}
@@ -147,7 +147,7 @@ function SchedulePicker({ suite }) {
   const needsTime = ['daily', 'weekdays', 'weekly'].includes(spec.freq);
 
   return (
-    <div className="mt-3 rounded-lg border border-ink-600 bg-ink-900/40 p-3">
+    <div className="mt-3 rounded-lg border border-ink-600 bg-gray-50 p-3">
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <label className="label">Run automatically</label>

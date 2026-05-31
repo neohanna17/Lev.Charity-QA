@@ -93,7 +93,7 @@ export default function Modules() {
       {names.length === 0 ? (
         <div className="card mt-6 p-10 text-center text-gray-400">
           No tests yet. Install the recorder extension and capture a flow on{' '}
-          <span className="text-gray-200">lev.charity</span>, or create one manually.
+          <span className="text-gray-800">lev.charity</span>, or create one manually.
         </div>
       ) : (
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -122,17 +122,17 @@ export default function Modules() {
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs">
                   {passed > 0 && (
-                    <span className="rounded-full bg-green-500/15 px-2 py-0.5 text-green-400">
+                    <span className="rounded-full bg-green-500/15 px-2 py-0.5 text-green-700">
                       {passed} passing
                     </span>
                   )}
                   {failed > 0 && (
-                    <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-red-400">
+                    <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-red-700">
                       {failed} failing
                     </span>
                   )}
                   {never > 0 && (
-                    <span className="rounded-full bg-ink-600 px-2 py-0.5 text-gray-400">
+                    <span className="rounded-full bg-ink-700 px-2 py-0.5 text-gray-500">
                       {never} not run
                     </span>
                   )}

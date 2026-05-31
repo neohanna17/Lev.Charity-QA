@@ -16,23 +16,23 @@ export default function Layout({ children }) {
 
   return (
     <div className="flex min-h-full">
-      <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-ink-600 bg-ink-800/80 backdrop-blur">
+      <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-ink-600 bg-white">
         <button
           onClick={() => navigate('/')}
-          className="flex items-center gap-2 px-4 h-16 border-b border-ink-600 bg-white"
+          className="flex flex-col items-start gap-1 px-4 py-4 border-b border-ink-600"
         >
           {logoOk ? (
             <img
               src="/logo.png"
               alt="levcharity"
-              className="h-7 w-auto"
+              className="h-8 w-auto"
               onError={() => setLogoOk(false)}
             />
           ) : (
-            <span className="text-lg font-bold tracking-tight text-ink-900">levcharity</span>
+            <span className="text-xl font-bold tracking-tight text-gray-900">levcharity</span>
           )}
-          <span className="rounded bg-ink-800 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-            QA
+          <span className="text-xs font-semibold uppercase tracking-wide text-brand">
+            QA Dashboard
           </span>
         </button>
 
@@ -44,7 +44,9 @@ export default function Layout({ children }) {
               end={n.end}
               className={({ isActive }) =>
                 `rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive ? 'bg-ink-600 text-white' : 'text-gray-400 hover:bg-ink-700 hover:text-gray-200'
+                  isActive
+                    ? 'bg-brand/10 text-brand'
+                    : 'text-gray-500 hover:bg-ink-700 hover:text-gray-800'
                 }`
               }
             >
@@ -59,7 +61,7 @@ export default function Layout({ children }) {
               {user.photoURL && (
                 <img src={user.photoURL} alt="" className="h-7 w-7 rounded-full" />
               )}
-              <span className="flex-1 truncate text-xs text-gray-400">
+              <span className="flex-1 truncate text-xs text-gray-500">
                 {user.displayName || user.email}
               </span>
               <button onClick={logout} className="btn-ghost py-1 px-2 text-xs">

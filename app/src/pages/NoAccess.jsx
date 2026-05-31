@@ -10,13 +10,13 @@ export default function NoAccess() {
           Your Google account is signed in but not yet a member of this workspace.
           Ask an admin to add you in Firestore.
         </p>
-        <div className="mt-4 rounded-lg bg-ink-900 p-3 text-left text-xs">
+        <div className="mt-4 rounded-lg bg-gray-50 border border-ink-600 p-3 text-left text-xs">
           <div className="text-gray-500">Collection</div>
-          <code className="text-gray-200">members</code>
+          <code className="text-gray-800">members</code>
           <div className="mt-2 text-gray-500">Document ID (your UID)</div>
           <code className="break-all text-brand">{user?.uid}</code>
           <div className="mt-2 text-gray-500">Email</div>
-          <code className="text-gray-200">{user?.email}</code>
+          <code className="text-gray-800">{user?.email}</code>
         </div>
         <button onClick={logout} className="btn-ghost mt-6">
           Sign out

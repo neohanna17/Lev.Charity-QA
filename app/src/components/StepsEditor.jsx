@@ -84,15 +84,15 @@ export default function StepsEditor({
                     ▶↓
                   </button>
                 )}
-                <button onClick={() => moveStep(i, -1)} className="px-1 hover:text-gray-200">
+                <button onClick={() => moveStep(i, -1)} className="px-1 hover:text-gray-800">
                   ↑
                 </button>
-                <button onClick={() => moveStep(i, 1)} className="px-1 hover:text-gray-200">
+                <button onClick={() => moveStep(i, 1)} className="px-1 hover:text-gray-800">
                   ↓
                 </button>
                 <button
                   onClick={() => setEditing(editing === i ? null : i)}
-                  className="px-1.5 hover:text-gray-200"
+                  className="px-1.5 hover:text-gray-800"
                 >
                   ✎
                 </button>
@@ -123,7 +123,7 @@ function StepEditor({ step, onChange, components, allowComponents }) {
   );
 
   return (
-    <div className="space-y-3 border-t border-ink-600 bg-ink-900/50 px-3 py-3">
+    <div className="space-y-3 border-t border-ink-600 bg-gray-50 px-3 py-3">
       <div>
         <label className="label">Action</label>
         <select

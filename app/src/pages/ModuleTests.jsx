@@ -73,11 +73,11 @@ export default function ModuleTests() {
   return (
     <div>
       <div className="mb-4 flex items-center gap-2 text-sm text-gray-500">
-        <Link to="/" className="hover:text-gray-300">
+        <Link to="/" className="hover:text-gray-700">
           Modules
         </Link>
         <span>/</span>
-        <span className="text-gray-300">{moduleName}</span>
+        <span className="text-gray-700">{moduleName}</span>
       </div>
 
       <div className="flex items-center justify-between">

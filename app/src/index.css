@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html,
@@ -14,8 +14,8 @@ body,
 
 body {
   margin: 0;
-  background: #0c0d12;
-  color: #e7e9f0;
+  background: #f4f6f9;
+  color: #1f2430;
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -27,18 +27,18 @@ body {
     @apply btn bg-brand hover:bg-brand-600 text-white;
   }
   .btn-ghost {
-    @apply btn bg-ink-700 hover:bg-ink-600 text-gray-200 border border-ink-500;
+    @apply btn bg-white hover:bg-ink-700 text-gray-700 border border-ink-600;
   }
   .btn-danger {
     @apply btn bg-red-600/90 hover:bg-red-600 text-white;
   }
   .card {
-    @apply bg-ink-800 border border-ink-600 rounded-xl;
+    @apply bg-white border border-ink-600 rounded-xl shadow-sm;
   }
   .input {
-    @apply w-full bg-ink-900 border border-ink-500 rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand/60;
+    @apply w-full bg-white border border-ink-500 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand;
   }
   .label {
-    @apply block text-xs font-medium uppercase tracking-wide text-gray-400 mb-1.5;
+    @apply block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5;
   }
 }

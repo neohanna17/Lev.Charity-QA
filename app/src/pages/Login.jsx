@@ -33,7 +33,7 @@ export default function Login() {
           </svg>
           Sign in with Google
         </button>
-        {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
+        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
       </div>
     </div>
   );

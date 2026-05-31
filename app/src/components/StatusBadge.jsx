@@ -1,12 +1,12 @@
 const STYLES = {
-  passed: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
-  failed: 'bg-red-500/15 text-red-400 border-red-500/30',
-  error: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
-  running: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
-  queued: 'bg-ink-600 text-gray-300 border-ink-500',
-  skipped: 'bg-ink-600 text-gray-400 border-ink-500',
-  active: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
-  archived: 'bg-ink-600 text-gray-400 border-ink-500',
+  passed: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
+  failed: 'bg-red-500/15 text-red-700 border-red-500/30',
+  error: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
+  running: 'bg-blue-500/15 text-blue-700 border-blue-500/30',
+  queued: 'bg-ink-700 text-gray-600 border-ink-500',
+  skipped: 'bg-ink-700 text-gray-500 border-ink-500',
+  active: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
+  archived: 'bg-ink-700 text-gray-500 border-ink-500',
 };
 
 export default function StatusBadge({ status }) {

@@ -20,11 +20,11 @@ export default function RunDetail() {
   return (
     <div>
       <div className="mb-4 flex items-center gap-2 text-sm text-gray-500">
-        <Link to="/runs" className="hover:text-gray-300">
+        <Link to="/runs" className="hover:text-gray-700">
           Runs
         </Link>
         <span>/</span>
-        <Link to={`/tests/${run.testId}`} className="hover:text-gray-300">
+        <Link to={`/tests/${run.testId}`} className="hover:text-gray-700">
           {run.testName}
         </Link>
       </div>
@@ -53,7 +53,7 @@ export default function RunDetail() {
       </div>
 
       {run.partial && (
-        <div className="mt-4 rounded-lg border border-purple-500/30 bg-purple-500/10 px-4 py-2 text-sm text-purple-300">
+        <div className="mt-4 rounded-lg border border-purple-500/30 bg-purple-500/10 px-4 py-2 text-sm text-purple-700">
           Partial run
           {Number.isInteger(run.fromStep) && run.fromStep > 0 ? ` from step ${run.fromStep + 1}` : ''}
           {Number.isInteger(run.toStep) ? ` up to step ${run.toStep + 1}` : ''} · visual checks skipped.
@@ -61,14 +61,14 @@ export default function RunDetail() {
       )}
 
       {pending && (
-        <div className="mt-4 flex items-center gap-3 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-300">
+        <div className="mt-4 flex items-center gap-3 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-700">
           <span className="h-3 w-3 animate-spin rounded-full border-2 border-blue-300/40 border-t-blue-300" />
           Waiting for the GitHub Actions runner to pick up and execute this run…
         </div>
       )}
 
       {run.error && (
-        <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700">
           <div className="font-medium">Run error</div>
           <pre className="mt-1 whitespace-pre-wrap font-mono text-xs">{run.error}</pre>
         </div>
@@ -135,7 +135,7 @@ export default function RunDetail() {
               </span>
               {s.visual?.status === 'changed' && (
                 <span
-                  className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-400"
+                  className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-700"
                   title={s.visual.note || 'Looks different from the baseline'}
                 >
                   ⚠ visual {Math.round((s.visual.ratio || 0) * 100)}%
@@ -166,13 +166,13 @@ export default function RunDetail() {
               )}
             </div>
             {s.message && s.status !== 'passed' && (
-              <pre className="border-t border-ink-600 bg-ink-900/50 px-4 py-2 font-mono text-xs text-red-300 whitespace-pre-wrap">
+              <pre className="border-t border-ink-600 bg-red-50 px-4 py-2 font-mono text-xs text-red-700 whitespace-pre-wrap">
                 {s.message}
                 {s.healedWith ? `\nself-healed via: ${s.healedWith}` : ''}
               </pre>
             )}
             {s.healedWith && s.status === 'passed' && (
-              <div className="border-t border-ink-600 bg-amber-500/5 px-4 py-1.5 text-xs text-amber-400">
+              <div className="border-t border-ink-600 bg-amber-500/5 px-4 py-1.5 text-xs text-amber-700">
                 self-healed via: <code>{s.healedWith}</code>
               </div>
             )}
