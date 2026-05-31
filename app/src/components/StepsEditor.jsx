@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { STEP_TYPES, stepLabel, emptyStep } from '../lib/schema';
+import { STEP_TYPES, stepLabel, emptyStep, cryptoId } from '../lib/schema';
 
 // Ordered, editable step list. Used by both the test editor and the reusable
 // component editor. Pass `components` + `allowComponents` to enable inserting
@@ -18,6 +18,13 @@ export default function StepsEditor({
   const updateStep = (i, patch) =>
     onChange(list.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   const addStep = () => onChange([...list, emptyStep()]);
+  const addComponent = () => {
+    onChange([
+      ...list,
+      { id: cryptoId(), type: 'component', componentId: '', componentName: '', selectors: [] },
+    ]);
+    setEditing(list.length); // open the new step so they can pick which component
+  };
   const removeStep = (i) => onChange(list.filter((_, idx) => idx !== i));
   const moveStep = (i, dir) => {
     const next = [...list];
@@ -43,9 +50,20 @@ export default function StepsEditor({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-400">
           Steps ({list.length})
         </h2>
-        <button onClick={addStep} className="btn-ghost py-1 px-2.5 text-xs">
-          + Add step
-        </button>
+        <div className="flex gap-2">
+          {allowComponents && (
+            <button
+              onClick={addComponent}
+              className="btn-ghost py-1 px-2.5 text-xs"
+              title="Insert a saved reusable component (e.g. Log in) as a single step"
+            >
+              + Add component
+            </button>
+          )}
+          <button onClick={addStep} className="btn-ghost py-1 px-2.5 text-xs">
+            + Add step
+          </button>
+        </div>
       </div>
       {list.length === 0 && (
         <div className="card p-6 text-center text-sm text-gray-500">
