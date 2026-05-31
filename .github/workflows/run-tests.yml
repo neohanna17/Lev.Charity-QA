@@ -45,6 +45,9 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          # Failure alerts → Discord (optional; no-op if the secret is unset).
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DASHBOARD_URL: https://lev-charity.netlify.app
           # repository_dispatch payload > manual input > empty (drain queue)
           RUN_ID: ${{ github.event.client_payload.run_id || github.event.inputs.run_id }}
           # On the daily schedule, run every active test instead of draining.

@@ -16,6 +16,52 @@ async function uploadScreenshot(runId, index, buffer) {
   return url;
 }
 
+// Post a failure alert to a Discord channel webhook. No-op unless the run
+// failed and DISCORD_WEBHOOK_URL is configured.
+async function notifyDiscord({ runId, testName, outcome, errorMsg, steps, durationMs }) {
+  const url = process.env.DISCORD_WEBHOOK_URL;
+  if (!url) return;
+  if (outcome !== 'failed' && outcome !== 'error') return;
+
+  const failed = (steps || []).find((s) => s.status === 'failed' || s.status === 'error');
+  const detail = failed
+    ? `**Failed step:** ${failed.label || failed.type}\n\`\`\`${(failed.message || 'no message').slice(0, 600)}\`\`\``
+    : errorMsg
+      ? `\`\`\`${errorMsg.slice(0, 600)}\`\`\``
+      : 'The run failed.';
+  const base = (process.env.DASHBOARD_URL || '').replace(/\/+$/, '');
+  const link = base ? `${base}/runs/${runId}` : undefined;
+
+  const body = {
+    embeds: [
+      {
+        title: `❌ Test failed: ${testName || 'Untitled test'}`,
+        url: link,
+        color: 0xef4444,
+        description: detail,
+        fields: [
+          { name: 'Status', value: String(outcome), inline: true },
+          { name: 'Duration', value: `${Math.round((durationMs || 0) / 1000)}s`, inline: true },
+        ],
+        timestamp: new Date().toISOString(),
+        footer: { text: 'Lev.Charity QA' },
+      },
+    ],
+  };
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) console.warn('Discord notify failed:', res.status, await res.text().catch(() => ''));
+    else console.log('→ Discord alert sent');
+  } catch (e) {
+    console.warn('Discord notify error:', e.message);
+  }
+}
+
 async function executeRun(runId) {
   const runRef = db.collection('runs').doc(runId);
   const runSnap = await runRef.get();
@@ -80,6 +126,14 @@ async function executeRun(runId) {
     finishedAt: FieldValue.serverTimestamp(),
   });
   console.log(`■ Run ${runId} finished: ${outcome}`);
+  await notifyDiscord({
+    runId,
+    testName: test.name,
+    outcome,
+    errorMsg,
+    steps: collected,
+    durationMs: Date.now() - startedAt,
+  });
   return outcome;
 }
 
