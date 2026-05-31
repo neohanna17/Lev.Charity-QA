@@ -3,7 +3,7 @@
 // and extension/recorder.js.
 
 export const STEP_TYPES = {
-  navigate: { label: 'Go to URL', needs: ['value'] },
+  navigate: { label: 'Navigate to URL', needs: ['value'] },
   click: { label: 'Click', needs: ['target'] },
   type: { label: 'Type text', needs: ['target', 'value'] },
   press: { label: 'Press key', needs: ['value'] },
