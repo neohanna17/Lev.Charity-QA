@@ -314,6 +314,42 @@ const SECTIONS = [
           The daily sweep runs every active test; the hourly job runs only the suites whose
           schedule is due that hour.
         </p>
+        <p className="tip">
+          <strong>What is a suite, really?</strong> It’s “a checklist that runs together.”
+          Group tests by the user journey they cover, not by who wrote them — so when a
+          journey breaks, one suite goes red and tells you exactly which area to look at.
+        </p>
+        <p>
+          <strong>Good suites to start with:</strong>
+        </p>
+        <ul>
+          <li>
+            <strong>Critical path (run hourly)</strong> — the handful of tests that must
+            never break: log in, open a campaign, make a donation, see the receipt. Setup
+            component: <em>Log in</em>. If this suite is green, the site basically works.
+          </li>
+          <li>
+            <strong>Donations (run daily)</strong> — every donation variation: one-off,
+            recurring, different amounts, failed-card handling. Setup component:{' '}
+            <em>Log in</em>.
+          </li>
+          <li>
+            <strong>Ecards &amp; Campaigns (run daily)</strong> — create / edit / preview /
+            send flows for each module, grouped so a content change that breaks previews
+            shows up in one place.
+          </li>
+          <li>
+            <strong>Admin &amp; Settings (run daily)</strong> — permissions, account
+            settings, CRM. These change less often, so daily is plenty.
+          </li>
+        </ul>
+        <p>
+          <strong>Why a setup component matters:</strong> almost every test needs you logged
+          in first. Instead of pasting the login steps into 30 tests (and updating all 30
+          when the login page changes), point the suite’s setup component at your{' '}
+          <em>Log in</em> component once. It runs before every test in the suite, and you
+          maintain the login flow in exactly one place.
+        </p>
       </>
     ),
   },
