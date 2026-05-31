@@ -371,9 +371,38 @@ async function enqueueAndRun(tests, triggeredBy, setupForTest) {
   return failures;
 }
 
+// Delete runs (and their stored screenshots/video/trace) older than
+// RETENTION_DAYS so Firestore + Storage don't grow without bound. Runs on the
+// daily sweep. Set RETENTION_DAYS=0 to disable.
+async function cleanupOldRuns() {
+  const days = Number(process.env.RETENTION_DAYS ?? 30);
+  if (!days || days <= 0) return;
+  const cutoff = new Date(Date.now() - days * 86400000);
+  const snap = await db.collection('runs').where('startedAt', '<', cutoff).limit(500).get();
+  if (snap.empty) {
+    console.log(`Retention: no runs older than ${days} days.`);
+    return;
+  }
+  console.log(`Retention: removing ${snap.size} run(s) older than ${days} days…`);
+  let removed = 0;
+  for (const docSnap of snap.docs) {
+    if (bucket) {
+      try {
+        await bucket.deleteFiles({ prefix: `runs/${docSnap.id}/` });
+      } catch (e) {
+        console.warn(`  could not delete artifacts for ${docSnap.id}:`, e.message);
+      }
+    }
+    await docSnap.ref.delete();
+    removed += 1;
+  }
+  console.log(`Retention: removed ${removed} run(s).`);
+}
+
 // Enqueue and execute every active test. Used by the daily scheduled job so
 // the whole suite is checked automatically without anyone clicking "Run".
 async function runAllActive() {
+  await cleanupOldRuns().catch((e) => console.warn('Retention cleanup failed:', e.message));
   const snap = await db.collection('tests').get();
   const tests = snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))

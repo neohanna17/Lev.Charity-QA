@@ -1,14 +1,19 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { watchRun } from '../lib/db';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { watchRun, getTest } from '../lib/db';
+import { triggerRun } from '../lib/triggerRun';
 import StatusBadge from '../components/StatusBadge';
 import Spinner from '../components/Spinner';
+import BugReportModal from '../components/BugReportModal';
 import { timeAgo, fmtDuration } from '../lib/format';
 
 export default function RunDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [run, setRun] = useState(undefined);
   const [shot, setShot] = useState(null);
+  const [bugOpen, setBugOpen] = useState(false);
+  const [rerunning, setRerunning] = useState(false);
 
   useEffect(() => watchRun(id, setRun), [id]);
 
@@ -16,17 +21,53 @@ export default function RunDetail() {
   if (run === null) return <div className="text-gray-400">Run not found.</div>;
 
   const pending = run.status === 'queued' || run.status === 'running';
+  const failed = run.status === 'failed' || run.status === 'error';
+
+  async function handleRerun() {
+    setRerunning(true);
+    try {
+      const test = await getTest(run.testId);
+      if (!test) {
+        alert('The test for this run no longer exists.');
+        return;
+      }
+      const runId = await triggerRun(test, {
+        fromStep: run.fromStep,
+        toStep: run.toStep,
+        setupComponentId: run.setupComponentId || undefined,
+      });
+      navigate(`/runs/${runId}`);
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setRerunning(false);
+    }
+  }
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-2 text-sm text-gray-500">
-        <Link to="/runs" className="hover:text-gray-700">
-          Runs
-        </Link>
-        <span>/</span>
-        <Link to={`/tests/${run.testId}`} className="hover:text-gray-700">
-          {run.testName}
-        </Link>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <Link to="/runs" className="hover:text-gray-700">
+            Runs
+          </Link>
+          <span>/</span>
+          <Link to={`/tests/${run.testId}`} className="hover:text-gray-700">
+            {run.testName}
+          </Link>
+        </div>
+        <div className="flex gap-2">
+          {failed && (
+            <button onClick={() => setBugOpen(true)} className="btn-ghost py-1.5 px-3 text-xs">
+              Create bug report
+            </button>
+          )}
+          {!pending && (
+            <button onClick={handleRerun} disabled={rerunning} className="btn-primary py-1.5 px-3 text-xs">
+              {rerunning ? 'Starting…' : '↻ Re-run'}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="card flex flex-wrap items-center gap-x-8 gap-y-2 p-5">
@@ -193,6 +234,8 @@ export default function RunDetail() {
           <img src={shot} alt="screenshot" className="max-h-[90vh] max-w-full rounded-lg" />
         </div>
       )}
+
+      {bugOpen && <BugReportModal run={run} onClose={() => setBugOpen(false)} />}
     </div>
   );
 }

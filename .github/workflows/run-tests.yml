@@ -65,4 +65,7 @@ jobs:
           # Fraction of pixels that must differ before a step is flagged as a
           # visual change (0.01 = 1%). Lower = stricter.
           VISUAL_THRESHOLD: '0.01'
+          # Delete runs + their stored artifacts older than this many days
+          # (during the daily sweep). Set to 0 to keep everything forever.
+          RETENTION_DAYS: '30'
         run: node run.js

@@ -11,6 +11,7 @@ import Runs from './pages/Runs';
 import RunDetail from './pages/RunDetail';
 import Suites from './pages/Suites';
 import Components from './pages/Components';
+import Reports from './pages/Reports';
 
 export default function App() {
   const { user, member, loading } = useAuth();
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="/runs/:id" element={<RunDetail />} />
         <Route path="/suites" element={<Suites />} />
         <Route path="/components" element={<Components />} />
+        <Route path="/reports" element={<Reports />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
