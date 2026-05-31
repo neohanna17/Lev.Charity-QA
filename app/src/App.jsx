@@ -4,7 +4,8 @@ import Layout from './components/Layout';
 import Spinner from './components/Spinner';
 import Login from './pages/Login';
 import NoAccess from './pages/NoAccess';
-import TestsList from './pages/TestsList';
+import Modules from './pages/Modules';
+import ModuleTests from './pages/ModuleTests';
 import TestDetail from './pages/TestDetail';
 import Runs from './pages/Runs';
 import RunDetail from './pages/RunDetail';
@@ -27,7 +28,8 @@ export default function App() {
   return (
     <Layout>
       <Routes>
-        <Route path="/" element={<TestsList />} />
+        <Route path="/" element={<Modules />} />
+        <Route path="/modules/:name" element={<ModuleTests />} />
         <Route path="/tests/:id" element={<TestDetail />} />
         <Route path="/runs" element={<Runs />} />
         <Route path="/runs/:id" element={<RunDetail />} />

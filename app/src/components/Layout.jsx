@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const navItems = [
-  { to: '/', label: 'Tests', end: true },
+  { to: '/', label: 'Modules', end: true },
   { to: '/runs', label: 'Runs' },
   { to: '/suites', label: 'Suites' },
 ];

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getTest, saveTest, deleteTest, watchRunsForTest } from '../lib/db';
 import { triggerRun } from '../lib/triggerRun';
-import { STEP_TYPES, stepLabel, emptyStep, DEFAULT_MODULES } from '../lib/schema';
+import { STEP_TYPES, stepLabel, emptyStep, DEFAULT_MODULES, moduleOf } from '../lib/schema';
 import StatusBadge from '../components/StatusBadge';
 import Spinner from '../components/Spinner';
 import { timeAgo, fmtDuration } from '../lib/format';
@@ -86,7 +86,14 @@ export default function TestDetail() {
     <div>
       <div className="mb-4 flex items-center gap-2 text-sm text-gray-500">
         <Link to="/" className="hover:text-gray-300">
-          Tests
+          Modules
+        </Link>
+        <span>/</span>
+        <Link
+          to={`/modules/${encodeURIComponent(moduleOf(test))}`}
+          className="hover:text-gray-300"
+        >
+          {moduleOf(test)}
         </Link>
         <span>/</span>
         <span className="text-gray-300">{test.name}</span>
