@@ -53,14 +53,17 @@ export async function deleteTest(id) {
 
 // ---- Runs ----
 
+const toMs = (t) => (t?.toMillis ? t.toMillis() : t?.seconds ? t.seconds * 1000 : 0);
+
 export function watchRunsForTest(testId, cb, max = 25) {
-  const q = query(
-    collection(db, 'runs'),
-    where('testId', '==', testId),
-    orderBy('startedAt', 'desc'),
-    limit(max),
-  );
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  // No orderBy here so we don't need a composite Firestore index; we sort by
+  // start time on the client instead.
+  const q = query(collection(db, 'runs'), where('testId', '==', testId), limit(50));
+  return onSnapshot(q, (snap) => {
+    const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    rows.sort((a, b) => toMs(b.startedAt) - toMs(a.startedAt));
+    cb(rows.slice(0, max));
+  });
 }
 
 export function watchRecentRuns(cb, max = 50) {

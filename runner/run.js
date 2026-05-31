@@ -84,18 +84,17 @@ async function executeRun(runId) {
 }
 
 async function drainQueue() {
-  const snap = await db
-    .collection('runs')
-    .where('status', '==', 'queued')
-    .orderBy('startedAt', 'asc')
-    .limit(25)
-    .get();
+  // No orderBy so no composite index is required; the queued set is small, so
+  // we sort by start time in memory.
+  const snap = await db.collection('runs').where('status', '==', 'queued').limit(50).get();
   if (snap.empty) {
     console.log('No queued runs.');
     return;
   }
-  console.log(`Draining ${snap.size} queued run(s)…`);
-  for (const doc of snap.docs) {
+  const toMs = (t) => (t?.toMillis ? t.toMillis() : 0);
+  const docs = snap.docs.sort((a, b) => toMs(a.data().startedAt) - toMs(b.data().startedAt));
+  console.log(`Draining ${docs.length} queued run(s)…`);
+  for (const doc of docs) {
     await executeRun(doc.id);
   }
 }
