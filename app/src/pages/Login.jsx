@@ -18,9 +18,9 @@ export default function Login() {
     <div className="grid min-h-screen place-items-center px-4">
       <div className="card w-full max-w-sm p-8 text-center">
         <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-brand text-xl font-bold text-white">
-          R
+          L
         </div>
-        <h1 className="mt-4 text-xl font-semibold">Reflect-LEV</h1>
+        <h1 className="mt-4 text-xl font-semibold">Lev.Charity QA</h1>
         <p className="mt-1 text-sm text-gray-400">
           Internal end-to-end testing for lev.charity
         </p>

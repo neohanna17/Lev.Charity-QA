@@ -20,9 +20,9 @@ export default function Layout({ children }) {
             className="flex items-center gap-2 font-semibold tracking-tight"
           >
             <span className="grid h-7 w-7 place-items-center rounded-md bg-brand text-white text-sm font-bold">
-              R
+              L
             </span>
-            Reflect-LEV
+            Lev.Charity QA
           </button>
           <nav className="flex items-center gap-1">
             {navItems.map((n) => (

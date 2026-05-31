@@ -110,7 +110,7 @@ export default function TestsList() {
         <div>
           <h1 className="text-xl font-semibold">Tests</h1>
           <p className="text-sm text-gray-400">
-            Record with the Reflect-LEV Chrome extension, or build steps by hand.
+            Record with the Lev.Charity QA Chrome extension, or build steps by hand.
           </p>
         </div>
         <button onClick={handleNew} className="btn-primary">
