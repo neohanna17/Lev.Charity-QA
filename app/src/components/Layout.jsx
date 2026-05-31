@@ -8,6 +8,7 @@ const navItems = [
   { to: '/suites', label: 'Suites' },
   { to: '/components', label: 'Components' },
   { to: '/reports', label: 'Reports' },
+  { to: '/guide', label: 'Guide' },
 ];
 
 export default function Layout({ children }) {

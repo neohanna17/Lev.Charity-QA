@@ -42,3 +42,47 @@ body {
     @apply block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5;
   }
 }
+
+.guide-body p {
+  margin: 0 0 0.75rem;
+}
+.guide-body p:last-child {
+  margin-bottom: 0;
+}
+.guide-body ul,
+.guide-body ol {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+}
+.guide-body ul {
+  list-style: disc;
+}
+.guide-body ol {
+  list-style: decimal;
+}
+.guide-body li {
+  margin: 0.25rem 0;
+}
+.guide-body code {
+  background: #eef1f6;
+  border: 1px solid #e3e7ef;
+  border-radius: 0.3rem;
+  padding: 0.05rem 0.35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  color: #1847c0;
+}
+.guide-body a {
+  color: #2f6df6;
+  text-decoration: underline;
+}
+.guide-body strong {
+  color: #1f2430;
+}
+.guide-body .tip {
+  border-left: 3px solid #2f6df6;
+  background: #2f6df60d;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0 0.4rem 0.4rem 0;
+  color: #1847c0;
+}
