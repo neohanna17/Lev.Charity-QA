@@ -439,9 +439,17 @@ export default function Guide() {
                 key={t.id}
                 onClick={() => {
                   setOpenId(t.id);
-                  document
-                    .getElementById(`sec-${t.id}`)
-                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  // Defer until after the accordion re-renders: opening this
+                  // section (and collapsing the previous one above it) changes
+                  // the layout, so scrolling synchronously lands in the wrong
+                  // place. Two frames guarantees layout has settled.
+                  requestAnimationFrame(() =>
+                    requestAnimationFrame(() =>
+                      document
+                        .getElementById(`sec-${t.id}`)
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+                    ),
+                  );
                 }}
                 className={`block w-full rounded-md px-3 py-1.5 text-left text-sm transition-colors ${
                   openId === t.id

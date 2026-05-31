@@ -284,9 +284,16 @@ export default function TechGuide() {
                 key={t.id}
                 onClick={() => {
                   setOpenId(t.id);
-                  document
-                    .getElementById(`tsec-${t.id}`)
-                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  // Defer scroll until the accordion has re-rendered, otherwise
+                  // collapsing the previously-open section shifts layout and we
+                  // land below the target.
+                  requestAnimationFrame(() =>
+                    requestAnimationFrame(() =>
+                      document
+                        .getElementById(`tsec-${t.id}`)
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+                    ),
+                  );
                 }}
                 className={`block w-full rounded-md px-3 py-1.5 text-left text-sm transition-colors ${
                   openId === t.id
