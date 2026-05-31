@@ -66,6 +66,49 @@ export default function RunDetail() {
         </div>
       )}
 
+      {(run.videoUrl || run.traceUrl) && (
+        <div className="mt-6 grid gap-4 lg:grid-cols-3">
+          {run.videoUrl && (
+            <div className="lg:col-span-2">
+              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-400">
+                Recording
+              </h2>
+              <video
+                src={run.videoUrl}
+                controls
+                className="w-full rounded-lg border border-ink-600 bg-black"
+              />
+            </div>
+          )}
+          {run.traceUrl && (
+            <div>
+              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-400">
+                Trace
+              </h2>
+              <div className="card space-y-2 p-4 text-sm">
+                <p className="text-gray-400">
+                  Step-by-step Playwright trace with DOM snapshots and network.
+                </p>
+                <a href={run.traceUrl} download className="btn-ghost block text-center text-xs">
+                  Download trace.zip
+                </a>
+                <a
+                  href="https://trace.playwright.dev"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block text-center text-xs text-brand hover:underline"
+                >
+                  Open trace.playwright.dev →
+                </a>
+                <p className="text-xs text-gray-600">
+                  Download, then drag the file onto trace.playwright.dev to explore it.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <h2 className="mt-8 mb-2 text-sm font-semibold uppercase tracking-wide text-gray-400">
         Steps
       </h2>
@@ -75,7 +118,29 @@ export default function RunDetail() {
             <div className="flex items-center gap-3 px-4 py-3">
               <StatusBadge status={s.status} />
               <span className="flex-1 truncate text-sm">{s.label || s.type}</span>
+              {s.visual?.status === 'changed' && (
+                <span
+                  className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-400"
+                  title={s.visual.note || 'Looks different from the baseline'}
+                >
+                  ⚠ visual {Math.round((s.visual.ratio || 0) * 100)}%
+                </span>
+              )}
+              {s.visual?.status === 'baseline-created' && (
+                <span className="rounded-full bg-ink-600 px-2 py-0.5 text-xs text-gray-400">
+                  baseline set
+                </span>
+              )}
               <span className="text-xs text-gray-500">{fmtDuration(s.durationMs)}</span>
+              {s.visual?.diffUrl && (
+                <button
+                  onClick={() => setShot(s.visual.diffUrl)}
+                  className="btn-ghost py-1 px-2 text-xs"
+                  title="View visual diff"
+                >
+                  🔍
+                </button>
+              )}
               {s.screenshotUrl && (
                 <button
                   onClick={() => setShot(s.screenshotUrl)}

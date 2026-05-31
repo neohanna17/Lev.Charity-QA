@@ -80,7 +80,7 @@ export function watchRun(id, cb) {
 
 // Enqueue a run document. The GitHub Actions runner picks up "queued" runs
 // (or is targeted directly by id) and updates this doc as it progresses.
-export async function enqueueRun(test, triggeredBy) {
+export async function enqueueRun(test, triggeredBy, opts = {}) {
   const ref = await addDoc(collection(db, 'runs'), {
     testId: test.id,
     testName: test.name,
@@ -88,6 +88,7 @@ export async function enqueueRun(test, triggeredBy) {
     startedAt: serverTimestamp(),
     finishedAt: null,
     triggeredBy: triggeredBy || 'dashboard',
+    updateBaselines: !!opts.updateBaselines,
     steps: [],
     durationMs: 0,
     browser: 'chromium',

@@ -5,9 +5,9 @@ const FN_URL = import.meta.env.VITE_TRIGGER_FUNCTION_URL || '/.netlify/functions
 
 // Creates a queued run doc, then asks the Netlify function to dispatch a
 // GitHub Actions workflow that executes it. Returns the new run id.
-export async function triggerRun(test) {
+export async function triggerRun(test, opts = {}) {
   const user = auth.currentUser;
-  const runId = await enqueueRun(test, user ? user.email : 'dashboard');
+  const runId = await enqueueRun(test, user ? user.email : 'dashboard', opts);
 
   const idToken = user ? await user.getIdToken() : null;
   const res = await fetch(FN_URL, {

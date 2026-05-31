@@ -63,17 +63,27 @@ export default function TestDetail() {
     }
   }
 
-  async function handleRun() {
+  async function handleRun(opts) {
     if (dirty) await handleSave();
     setRunning(true);
     try {
-      const runId = await triggerRun(test);
+      const runId = await triggerRun(test, opts);
       navigate(`/runs/${runId}`);
     } catch (e) {
       alert(e.message);
     } finally {
       setRunning(false);
     }
+  }
+
+  async function handleBaseline() {
+    if (
+      !confirm(
+        'Capture the current look of every step as the visual baseline? Future runs compare against this.',
+      )
+    )
+      return;
+    await handleRun({ updateBaselines: true });
   }
 
   async function handleDelete() {
@@ -136,11 +146,19 @@ export default function TestDetail() {
           />
         </div>
         <div className="flex flex-col gap-2">
-          <button onClick={handleRun} disabled={running} className="btn-primary">
+          <button onClick={() => handleRun()} disabled={running} className="btn-primary">
             {running ? 'Starting…' : '▶ Run test'}
           </button>
           <button onClick={handleSave} disabled={!dirty || saving} className="btn-ghost">
             {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
+          </button>
+          <button
+            onClick={handleBaseline}
+            disabled={running}
+            className="btn-ghost text-xs"
+            title="Capture the current screenshots as the visual baseline for comparison"
+          >
+            Set visual baseline
           </button>
           <button
             onClick={() =>
