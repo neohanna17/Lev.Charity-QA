@@ -20,10 +20,10 @@ export const STEP_TYPES = {
 // suggestions — anyone can type a new module name on a test and it will
 // show up as a group and a suggestion thereafter.
 export const DEFAULT_MODULES = [
-  'Ecards',
   'Campaigns',
   'Donations',
   'Page Builder',
+  'Ecards',
   'Transactions',
   'Settings',
   'Permissions',
