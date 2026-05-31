@@ -60,7 +60,7 @@ export default function Runs() {
       <h1 className="text-xl font-semibold">Runs</h1>
       <p className="text-sm text-gray-500">Most recent test executions across all tests.</p>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2" data-tour="runs-toolbar">
         <div className="flex gap-1 rounded-lg border border-ink-600 bg-white p-1">
           {STATUS_FILTERS.map((f) => (
             <button
@@ -97,7 +97,7 @@ export default function Runs() {
         </span>
       </div>
 
-      <div className="card mt-4 divide-y divide-ink-600">
+      <div className="card mt-4 divide-y divide-ink-600" data-tour="runs-list">
         {filtered.length === 0 && (
           <div className="p-10 text-center text-gray-500">No runs match these filters.</div>
         )}

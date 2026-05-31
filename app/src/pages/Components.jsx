@@ -31,12 +31,12 @@ export default function Components() {
             test as a single step. Edit it here and every test that uses it updates.
           </p>
         </div>
-        <button onClick={handleNew} className="btn-primary">
+        <button onClick={handleNew} data-tour="components-new" className="btn-primary">
           + New component
         </button>
       </div>
 
-      <div className="mt-6 space-y-3">
+      <div className="mt-6 space-y-3" data-tour="components-list">
         {components.length === 0 && (
           <div className="card p-10 text-center text-gray-500">
             No components yet. Create one, then add it as a step inside a test.

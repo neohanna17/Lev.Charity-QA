@@ -141,12 +141,13 @@ export default function Modules() {
           <button
             onClick={handleLoginSmoke}
             disabled={creatingSmoke}
+            data-tour="modules-smoke"
             className="btn-ghost"
             title="Create a starter test that logs in and checks it worked"
           >
             {creatingSmoke ? 'Creating…' : '+ Login smoke test'}
           </button>
-          <button onClick={handleNew} className="btn-primary">
+          <button onClick={handleNew} data-tour="modules-new" className="btn-primary">
             + New test
           </button>
         </div>
@@ -161,7 +162,7 @@ export default function Modules() {
       )}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {names.map((name) => {
+        {names.map((name, idx) => {
           const list = groups[name] || [];
           const empty = list.length === 0;
           let passed = 0;
@@ -176,6 +177,7 @@ export default function Modules() {
           return (
             <button
               key={name}
+              data-tour={idx === 0 ? 'modules-card' : undefined}
               onClick={() => navigate(`/modules/${encodeURIComponent(name)}`)}
               className={`card p-5 text-left transition-colors hover:bg-ink-700/50 ${
                 empty ? 'border-dashed opacity-70' : ''

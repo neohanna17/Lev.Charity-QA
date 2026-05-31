@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ProductTour from './ProductTour';
 
 const navItems = [
-  { to: '/', label: 'Modules', end: true },
-  { to: '/runs', label: 'Runs' },
-  { to: '/suites', label: 'Suites' },
-  { to: '/components', label: 'Components' },
-  { to: '/reports', label: 'Reports' },
-  { to: '/guide', label: 'Guide' },
-  { to: '/tech', label: 'Tech guide' },
+  { to: '/', label: 'Modules', end: true, tour: 'nav-modules' },
+  { to: '/runs', label: 'Runs', tour: 'nav-runs' },
+  { to: '/suites', label: 'Suites', tour: 'nav-suites' },
+  { to: '/components', label: 'Components', tour: 'nav-components' },
+  { to: '/reports', label: 'Reports', tour: 'nav-reports' },
+  { to: '/guide', label: 'Guide', tour: 'nav-guide' },
+  { to: '/tech', label: 'Tech guide', tour: 'nav-tech' },
 ];
 
 export default function Layout({ children }) {
@@ -22,6 +23,7 @@ export default function Layout({ children }) {
       <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-ink-600 bg-white">
         <button
           onClick={() => navigate('/')}
+          data-tour="nav-home"
           className="flex flex-col items-start gap-1 px-4 py-4 border-b border-ink-600"
         >
           {logoOk ? (
@@ -45,6 +47,7 @@ export default function Layout({ children }) {
               key={n.to}
               to={n.to}
               end={n.end}
+              data-tour={n.tour}
               className={({ isActive }) =>
                 `rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                   isActive
@@ -67,7 +70,7 @@ export default function Layout({ children }) {
               <span className="flex-1 truncate text-xs text-gray-500">
                 {user.displayName || user.email}
               </span>
-              <button onClick={logout} className="btn-ghost py-1 px-2 text-xs">
+              <button onClick={logout} data-tour="nav-signout" className="btn-ghost py-1 px-2 text-xs">
                 Sign out
               </button>
             </div>
@@ -78,6 +81,8 @@ export default function Layout({ children }) {
       <main className="min-w-0 flex-1">
         <div className="mx-auto w-full max-w-6xl px-6 py-8">{children}</div>
       </main>
+
+      <ProductTour />
     </div>
   );
 }

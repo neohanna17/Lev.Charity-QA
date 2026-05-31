@@ -82,7 +82,7 @@ export default function Suites() {
             Group tests and run them together — manually or on a schedule.
           </p>
         </div>
-        <button onClick={handleNew} className="btn-primary">
+        <button onClick={handleNew} data-tour="suites-new" className="btn-primary">
           + New suite
         </button>
       </div>
@@ -91,7 +91,7 @@ export default function Suites() {
         {suites.length === 0 && (
           <div className="card p-10 text-center text-gray-500">No suites yet.</div>
         )}
-        {suites.map((s) => (
+        {suites.map((s, i) => (
           <SuiteCard
             key={s.id}
             suite={s}
@@ -99,6 +99,7 @@ export default function Suites() {
             components={components}
             running={running === s.id}
             onRun={() => runSuite(s)}
+            tour={i === 0 ? 'suite-card' : undefined}
           />
         ))}
       </div>
@@ -106,7 +107,7 @@ export default function Suites() {
   );
 }
 
-function SuiteCard({ suite, tests, components, running, onRun }) {
+function SuiteCard({ suite, tests, components, running, onRun, tour }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(suite.name);
 
@@ -128,7 +129,7 @@ function SuiteCard({ suite, tests, components, running, onRun }) {
   }
 
   return (
-    <div className="card overflow-hidden">
+    <div className="card overflow-hidden" data-tour={tour}>
       {/* Summary row — always visible */}
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
         <button

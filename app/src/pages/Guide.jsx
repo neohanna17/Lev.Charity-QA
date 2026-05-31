@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { startProductTour } from '../components/ProductTour';
 
 // In-dashboard onboarding guide. Data-driven: each section has a title, a
 // short summary, rich explanatory content, and an optional video URL. To add a
@@ -435,6 +436,19 @@ export default function Guide() {
         A step-by-step walkthrough for adding, running and reporting on tests — plus the
         Chrome recorder.
       </p>
+
+      <div className="mt-5 flex flex-col gap-3 rounded-lg border border-brand/30 bg-brand/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="font-semibold text-gray-900">New here? Take the interactive tour</div>
+          <p className="text-sm text-gray-500">
+            A guided walkthrough that jumps to every button across the dashboard — Modules,
+            Runs, Suites, Components and Reports — and explains exactly what each one does.
+          </p>
+        </div>
+        <button onClick={startProductTour} className="btn-primary shrink-0">
+          ▶ Start interactive walkthrough
+        </button>
+      </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[220px_1fr]">
         {/* Table of contents */}

@@ -126,7 +126,7 @@ export default function Reports() {
           <h1 className="text-xl font-semibold">Reports</h1>
           <p className="text-sm text-gray-500">Health and trends across all test runs.</p>
         </div>
-        <div className="flex gap-1 rounded-lg border border-ink-600 bg-white p-1">
+        <div className="flex gap-1 rounded-lg border border-ink-600 bg-white p-1" data-tour="reports-window">
           {WINDOWS.map((w) => (
             <button
               key={w.value}
@@ -148,7 +148,7 @@ export default function Reports() {
       ) : (
         <>
           {/* Headline tiles */}
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-tour="reports-tiles">
             <Tile label="Pass rate" value={`${stats.passRate}%`} accent={stats.passRate >= 90 ? 'green' : stats.passRate >= 70 ? 'amber' : 'red'} />
             <Tile label="Runs" value={stats.total} />
             <Tile label="Passed" value={stats.passed} accent="green" />
