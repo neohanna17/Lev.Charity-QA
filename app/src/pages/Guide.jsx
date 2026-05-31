@@ -305,9 +305,14 @@ const SECTIONS = [
             so it runs on its own.
           </li>
           <li>
-            Set a <strong>setup component</strong> — e.g. “Run Log in first”. It’s
-            automatically prepended to every test in the suite, so you don’t repeat the login
-            steps in each test.
+            Add <strong>before / after components</strong> — e.g. run “Accept cookies” then
+            “Log in” before every test, and “Log out” after. They’re applied to every test in
+            the suite in order, so you don’t repeat those steps in each test.
+          </li>
+          <li>
+            <strong>Pick tests by module and search</strong> — filter the list down, then tick
+            the ones to include (or “Select all”). Each suite collapses to a one-line summary
+            so the page stays readable as you add more.
           </li>
         </ul>
         <p>
@@ -344,11 +349,12 @@ const SECTIONS = [
           </li>
         </ul>
         <p>
-          <strong>Why a setup component matters:</strong> almost every test needs you logged
-          in first. Instead of pasting the login steps into 30 tests (and updating all 30
-          when the login page changes), point the suite’s setup component at your{' '}
-          <em>Log in</em> component once. It runs before every test in the suite, and you
-          maintain the login flow in exactly one place.
+          <strong>Why before/after components matter:</strong> almost every test needs you
+          logged in first. Instead of pasting the login steps into 30 tests (and updating all
+          30 when the login page changes), add your <em>Log in</em> component to the suite’s
+          “Run before each test” list once. It runs before every test in the suite, and you
+          maintain the login flow in exactly one place. The “Run after each test” list is the
+          mirror image — handy for a <em>Log out</em> or cleanup component.
         </p>
       </>
     ),

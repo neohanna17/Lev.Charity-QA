@@ -98,6 +98,8 @@ export async function enqueueRun(test, triggeredBy, opts = {}) {
     fromStep: Number.isInteger(opts.fromStep) ? opts.fromStep : null,
     toStep: Number.isInteger(opts.toStep) ? opts.toStep : null,
     setupComponentId: opts.setupComponentId || null,
+    setupComponentIds: opts.setupComponentIds || null,
+    teardownComponentIds: opts.teardownComponentIds || null,
     steps: [],
     durationMs: 0,
     browser: 'chromium',

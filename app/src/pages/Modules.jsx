@@ -88,10 +88,10 @@ export default function Modules() {
         name: 'Login smoke test',
         module: 'Smoke',
         description:
-          'Runs the Log in component, then verifies login succeeded. Edit the assert step below to match your post-login screen (e.g. assert a URL like /dashboard, or that a logged-in element is visible).',
+          'Runs the Log in component, then verifies login landed on the admin dashboard. If your post-login URL changes, update the "Assert URL contains" step.',
         steps: [
           { id: cryptoId(), type: 'component', componentId: login.id, componentName: login.name, selectors: [] },
-          { id: cryptoId(), type: 'assertUrl', value: '', selectors: [], target: { label: '' } },
+          { id: cryptoId(), type: 'assertUrl', value: '/admin/dashboard', selectors: [], target: { label: '' } },
         ],
         createdBy: user?.email || null,
       });

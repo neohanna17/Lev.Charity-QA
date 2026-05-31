@@ -188,11 +188,24 @@ async function executeRun(runId) {
   const sliced = allSteps.slice(from, to + 1);
   const partial = from > 0 || to < allSteps.length - 1;
 
-  // A suite can prepend a setup component (e.g. Log in) to every test. Skipped
-  // on partial runs, where step indices must match the test's own steps.
-  const hasSetup = !!run.setupComponentId && !partial;
+  // A suite can wrap each test with reusable components: one or more run before
+  // (e.g. Accept cookies → Log in) and one or more after (e.g. Log out). Older
+  // runs carry a single setupComponentId; honour that as a fallback. Wrapping is
+  // skipped on partial runs, where step indices must match the test's own steps.
+  const setupIds =
+    Array.isArray(run.setupComponentIds) && run.setupComponentIds.length
+      ? run.setupComponentIds
+      : run.setupComponentId
+        ? [run.setupComponentId]
+        : [];
+  const teardownIds = Array.isArray(run.teardownComponentIds) ? run.teardownComponentIds : [];
+  const hasSetup = !partial && (setupIds.length > 0 || teardownIds.length > 0);
   const withSetup = hasSetup
-    ? [{ type: 'component', componentId: run.setupComponentId }, ...sliced]
+    ? [
+        ...setupIds.map((id) => ({ type: 'component', componentId: id })),
+        ...sliced,
+        ...teardownIds.map((id) => ({ type: 'component', componentId: id })),
+      ]
     : sliced;
 
   // Expand any reusable-component steps into their underlying steps.
@@ -347,6 +360,7 @@ async function enqueueAndRun(tests, triggeredBy, setupForTest) {
   // Create all run docs up front so they show as "queued" immediately.
   const runIds = [];
   for (const test of tests) {
+    const wrap = (setupForTest && setupForTest(test)) || {};
     const runRef = await db.collection('runs').add({
       testId: test.id,
       testName: test.name,
@@ -354,7 +368,8 @@ async function enqueueAndRun(tests, triggeredBy, setupForTest) {
       startedAt: FieldValue.serverTimestamp(),
       finishedAt: null,
       triggeredBy,
-      setupComponentId: (setupForTest && setupForTest(test)) || null,
+      setupComponentIds: wrap.setupComponentIds || null,
+      teardownComponentIds: wrap.teardownComponentIds || null,
       steps: [],
       durationMs: 0,
       browser: 'chromium',
@@ -426,7 +441,7 @@ async function runScheduledSuites() {
   const suites = suitesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
   const dueTestIds = new Set();
-  const setupByTest = new Map(); // testId → suite's setup component, if any
+  const setupByTest = new Map(); // testId → { setupComponentIds, teardownComponentIds }
   const ranSuites = [];
   for (const suite of suites) {
     const expr = (suite.schedule || '').trim();
@@ -443,10 +458,17 @@ async function runScheduledSuites() {
     const last = suite.lastScheduledAt?.toMillis ? suite.lastScheduledAt.toMillis() : 0;
     if (prev.getTime() <= last) continue; // already ran this occurrence
 
+    const setupIds =
+      Array.isArray(suite.setupComponentIds) && suite.setupComponentIds.length
+        ? suite.setupComponentIds
+        : suite.setupComponentId
+          ? [suite.setupComponentId]
+          : [];
+    const teardownIds = Array.isArray(suite.teardownComponentIds) ? suite.teardownComponentIds : [];
     (suite.testIds || []).forEach((id) => {
       dueTestIds.add(id);
-      if (suite.setupComponentId && !setupByTest.has(id))
-        setupByTest.set(id, suite.setupComponentId);
+      if (!setupByTest.has(id) && (setupIds.length || teardownIds.length))
+        setupByTest.set(id, { setupComponentIds: setupIds, teardownComponentIds: teardownIds });
     });
     ranSuites.push({ id: suite.id, name: suite.name, occurrence: prev });
   }

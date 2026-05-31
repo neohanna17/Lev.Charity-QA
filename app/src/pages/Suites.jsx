@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   watchSuites,
   watchTests,
@@ -9,6 +9,7 @@ import {
 } from '../lib/db';
 import { triggerRun } from '../lib/triggerRun';
 import Spinner from '../components/Spinner';
+import { moduleOf } from '../lib/schema';
 import {
   FREQUENCIES,
   WEEKDAYS,
@@ -17,6 +18,15 @@ import {
   describeSchedule,
   localTzLabel,
 } from '../lib/schedule';
+
+// Older suites stored a single setupComponentId; new ones store ordered arrays.
+function setupIdsOf(suite) {
+  if (Array.isArray(suite.setupComponentIds) && suite.setupComponentIds.length)
+    return suite.setupComponentIds;
+  return suite.setupComponentId ? [suite.setupComponentId] : [];
+}
+const teardownIdsOf = (suite) =>
+  Array.isArray(suite.teardownComponentIds) ? suite.teardownComponentIds : [];
 
 export default function Suites() {
   const [suites, setSuites] = useState(null);
@@ -45,7 +55,15 @@ export default function Suites() {
     setRunning(suite.id);
     try {
       const chosen = tests.filter((t) => (suite.testIds || []).includes(t.id));
-      const opts = suite.setupComponentId ? { setupComponentId: suite.setupComponentId } : {};
+      if (chosen.length === 0) {
+        alert('This suite has no tests yet.');
+        return;
+      }
+      const opts = {};
+      const sIds = setupIdsOf(suite);
+      const tIds = teardownIdsOf(suite);
+      if (sIds.length) opts.setupComponentIds = sIds;
+      if (tIds.length) opts.teardownComponentIds = tIds;
       for (const t of chosen) await triggerRun(t, opts);
       alert(`Queued ${chosen.length} run(s).`);
     } catch (e) {
@@ -69,7 +87,7 @@ export default function Suites() {
         </button>
       </div>
 
-      <div className="mt-6 space-y-4">
+      <div className="mt-6 space-y-3">
         {suites.length === 0 && (
           <div className="card p-10 text-center text-gray-500">No suites yet.</div>
         )}
@@ -89,25 +107,49 @@ export default function Suites() {
 }
 
 function SuiteCard({ suite, tests, components, running, onRun }) {
+  const [open, setOpen] = useState(false);
   const [name, setName] = useState(suite.name);
-  const selected = new Set(suite.testIds || []);
 
-  function toggle(id) {
-    const next = new Set(selected);
+  const selected = new Set(suite.testIds || []);
+  const setupIds = setupIdsOf(suite);
+  const teardownIds = teardownIdsOf(suite);
+  const spec = { ...defaultSpec(), ...(suite.scheduleSpec || {}) };
+
+  function toggleTest(id) {
+    const next = new Set(suite.testIds || []);
     next.has(id) ? next.delete(id) : next.add(id);
     saveSuite(suite.id, { testIds: [...next] });
   }
 
+  function bulkTests(ids, add) {
+    const next = new Set(suite.testIds || []);
+    ids.forEach((id) => (add ? next.add(id) : next.delete(id)));
+    saveSuite(suite.id, { testIds: [...next] });
+  }
+
   return (
-    <div className="card p-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <input
-          className="input max-w-xs font-medium"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => saveSuite(suite.id, { name })}
-        />
-        <div className="ml-auto flex gap-2">
+    <div className="card overflow-hidden">
+      {/* Summary row — always visible */}
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="text-gray-500 hover:text-gray-800"
+          title={open ? 'Collapse' : 'Expand'}
+        >
+          {open ? '▾' : '▸'}
+        </button>
+        <button onClick={() => setOpen((o) => !o)} className="min-w-0 flex-1 text-left">
+          <span className="font-medium">{suite.name || 'Untitled suite'}</span>
+          <span className="mt-0.5 flex flex-wrap gap-2 text-xs text-gray-500">
+            <span>
+              {selected.size} test{selected.size === 1 ? '' : 's'}
+            </span>
+            <span>· {spec.freq === 'manual' ? 'Manual only' : describeSchedule(spec)}</span>
+            {setupIds.length > 0 && <span>· ↳ {setupIds.length} setup</span>}
+            {teardownIds.length > 0 && <span>· {teardownIds.length} teardown</span>}
+          </span>
+        </button>
+        <div className="flex gap-2">
           <button onClick={onRun} disabled={running} className="btn-primary py-1.5 px-3 text-xs">
             {running ? 'Queuing…' : '▶ Run suite'}
           </button>
@@ -120,46 +162,212 @@ function SuiteCard({ suite, tests, components, running, onRun }) {
         </div>
       </div>
 
-      <SchedulePicker suite={suite} />
+      {open && (
+        <div className="space-y-4 border-t border-ink-600 bg-gray-50 p-4">
+          <div>
+            <label className="label">Suite name</label>
+            <input
+              className="input max-w-sm font-medium"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={() => saveSuite(suite.id, { name })}
+            />
+          </div>
 
-      <div className="mt-3">
-        <label className="label">Run this component first (e.g. Log in)</label>
+          <SchedulePicker suite={suite} />
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <ComponentList
+              title="Run before each test"
+              help="Prepended to every test in order — e.g. Accept cookies, then Log in."
+              ids={setupIds}
+              components={components}
+              onChange={(ids) =>
+                saveSuite(suite.id, { setupComponentIds: ids, setupComponentId: null })
+              }
+            />
+            <ComponentList
+              title="Run after each test"
+              help="Appended to every test in order — e.g. Log out, reset state."
+              ids={teardownIds}
+              components={components}
+              onChange={(ids) => saveSuite(suite.id, { teardownComponentIds: ids })}
+            />
+          </div>
+
+          <TestPicker
+            tests={tests}
+            selected={selected}
+            onToggle={toggleTest}
+            onBulk={bulkTests}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Ordered list of reusable components with add (via dropdown) and remove.
+function ComponentList({ title, help, ids, components, onChange }) {
+  const byId = useMemo(() => {
+    const m = {};
+    for (const c of components) m[c.id] = c;
+    return m;
+  }, [components]);
+
+  const available = components.filter((c) => !ids.includes(c.id));
+
+  function add(id) {
+    if (id) onChange([...ids, id]);
+  }
+  function remove(id) {
+    onChange(ids.filter((x) => x !== id));
+  }
+  function move(idx, dir) {
+    const next = [...ids];
+    const j = idx + dir;
+    if (j < 0 || j >= next.length) return;
+    [next[idx], next[j]] = [next[j], next[idx]];
+    onChange(next);
+  }
+
+  return (
+    <div className="rounded-lg border border-ink-600 bg-white p-3">
+      <div className="label">{title}</div>
+      {ids.length === 0 && <p className="text-xs text-gray-400">None.</p>}
+      <ol className="space-y-1">
+        {ids.map((id, idx) => (
+          <li
+            key={id}
+            className="flex items-center gap-2 rounded-md border border-ink-600 bg-gray-50 px-2 py-1 text-xs"
+          >
+            <span className="text-gray-400">{idx + 1}.</span>
+            <span className="flex-1 truncate">
+              {byId[id]?.name || '(deleted component)'}
+            </span>
+            <button
+              onClick={() => move(idx, -1)}
+              disabled={idx === 0}
+              className="px-1 text-gray-400 hover:text-gray-700 disabled:opacity-30"
+              title="Move up"
+            >
+              ↑
+            </button>
+            <button
+              onClick={() => move(idx, 1)}
+              disabled={idx === ids.length - 1}
+              className="px-1 text-gray-400 hover:text-gray-700 disabled:opacity-30"
+              title="Move down"
+            >
+              ↓
+            </button>
+            <button
+              onClick={() => remove(id)}
+              className="px-1 text-gray-400 hover:text-red-600"
+              title="Remove"
+            >
+              ✕
+            </button>
+          </li>
+        ))}
+      </ol>
+      <select
+        className="input mt-2 text-sm"
+        value=""
+        onChange={(e) => add(e.target.value)}
+        disabled={available.length === 0}
+      >
+        <option value="">
+          {available.length === 0 ? 'No more components' : '+ Add component…'}
+        </option>
+        {available.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name} ({c.steps?.length || 0} steps)
+          </option>
+        ))}
+      </select>
+      <p className="mt-1 text-xs text-gray-500">{help}</p>
+    </div>
+  );
+}
+
+// Pick tests for the suite, filtered by module and name so a long list stays
+// manageable.
+function TestPicker({ tests, selected, onToggle, onBulk }) {
+  const [module, setModule] = useState('all');
+  const [search, setSearch] = useState('');
+
+  const modules = useMemo(
+    () => ['all', ...[...new Set(tests.map(moduleOf))].sort()],
+    [tests],
+  );
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return tests.filter((t) => {
+      if (module !== 'all' && moduleOf(t) !== module) return false;
+      if (q && !(t.name || '').toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [tests, module, search]);
+
+  const filteredIds = filtered.map((t) => t.id);
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selected.has(id));
+
+  return (
+    <div className="rounded-lg border border-ink-600 bg-white p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="label mb-0 mr-auto">
+          Tests in this suite
+          <span className="ml-2 font-normal normal-case tracking-normal text-gray-400">
+            {selected.size} selected
+          </span>
+        </div>
         <select
-          className="input max-w-sm"
-          value={suite.setupComponentId || ''}
-          onChange={(e) => saveSuite(suite.id, { setupComponentId: e.target.value || null })}
+          className="input max-w-[160px] py-1 text-sm"
+          value={module}
+          onChange={(e) => setModule(e.target.value)}
         >
-          <option value="">— none —</option>
-          {components.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name} ({c.steps?.length || 0} steps)
+          {modules.map((m) => (
+            <option key={m} value={m}>
+              {m === 'all' ? 'All modules' : m}
             </option>
           ))}
         </select>
-        <p className="mt-1 text-xs text-gray-500">
-          Prepended to every test in this suite at run time — handy for logging in once per test
-          without editing each one.
-        </p>
+        <input
+          className="input max-w-[180px] py-1 text-sm"
+          placeholder="Search tests…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <button
+          onClick={() => onBulk(filteredIds, !allFilteredSelected)}
+          disabled={filteredIds.length === 0}
+          className="btn-ghost py-1 px-2.5 text-xs"
+        >
+          {allFilteredSelected ? 'Clear these' : 'Select all'}
+        </button>
       </div>
 
-      <div className="mt-3">
-        <div className="label">Tests in this suite</div>
-        <div className="mt-1 flex flex-wrap gap-2">
-          {tests.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => toggle(t.id)}
-              className={`rounded-full border px-3 py-1 text-xs ${
-                selected.has(t.id)
-                  ? 'border-brand bg-brand/15 text-brand'
-                  : 'border-ink-500 text-gray-500 hover:text-gray-800'
-              }`}
-            >
-              {t.name}
-            </button>
-          ))}
-          {tests.length === 0 && <span className="text-xs text-gray-500">No tests to add.</span>}
-        </div>
+      <div className="mt-2 max-h-64 overflow-auto rounded-md border border-ink-600 divide-y divide-ink-600">
+        {filtered.length === 0 && (
+          <div className="p-4 text-center text-xs text-gray-500">No tests match.</div>
+        )}
+        {filtered.map((t) => (
+          <label
+            key={t.id}
+            className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-ink-700/40"
+          >
+            <input
+              type="checkbox"
+              checked={selected.has(t.id)}
+              onChange={() => onToggle(t.id)}
+              className="h-4 w-4 accent-brand"
+            />
+            <span className="flex-1 truncate">{t.name}</span>
+            <span className="text-xs text-gray-400">{moduleOf(t)}</span>
+          </label>
+        ))}
       </div>
     </div>
   );
@@ -179,7 +387,7 @@ function SchedulePicker({ suite }) {
   const needsTime = ['daily', 'weekdays', 'weekly'].includes(spec.freq);
 
   return (
-    <div className="mt-3 rounded-lg border border-ink-600 bg-gray-50 p-3">
+    <div className="rounded-lg border border-ink-600 bg-white p-3">
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <label className="label">Run automatically</label>

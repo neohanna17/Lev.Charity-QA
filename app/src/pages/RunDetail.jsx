@@ -35,7 +35,10 @@ export default function RunDetail() {
       const runId = await triggerRun(test, {
         fromStep: run.fromStep,
         toStep: run.toStep,
-        setupComponentId: run.setupComponentId || undefined,
+        setupComponentIds:
+          run.setupComponentIds ||
+          (run.setupComponentId ? [run.setupComponentId] : undefined),
+        teardownComponentIds: run.teardownComponentIds || undefined,
       });
       navigate(`/runs/${runId}`);
     } catch (e) {
