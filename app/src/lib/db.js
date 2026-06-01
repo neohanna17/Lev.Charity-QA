@@ -281,4 +281,38 @@ export async function deleteFeedback(id) {
   await deleteDoc(doc(db, 'feedback', id));
 }
 
+// ---- Presence ----
+// A lightweight "who's online" signal. Each signed-in member maintains one
+// presence/{uid} doc with a heartbeat timestamp and the page they're on, so
+// everyone can see who else is working and avoid editing the same thing.
+
+export function setPresence(user, path) {
+  if (!user) return Promise.resolve();
+  return setDoc(
+    doc(db, 'presence', user.uid),
+    {
+      uid: user.uid,
+      name: user.displayName || null,
+      email: user.email || null,
+      photoURL: user.photoURL || null,
+      path: path || '/',
+      lastActive: serverTimestamp(),
+    },
+    { merge: true },
+  ).catch(() => {});
+}
+
+export function clearPresence(uid) {
+  if (!uid) return Promise.resolve();
+  return deleteDoc(doc(db, 'presence', uid)).catch(() => {});
+}
+
+export function watchPresence(cb) {
+  return onSnapshot(
+    collection(db, 'presence'),
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    () => cb([]), // swallow permission errors (e.g. rules not published yet)
+  );
+}
+
 export { doc, setDoc };

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePresence } from '../lib/usePresence';
+import PresenceBar from './PresenceBar';
 import ProductTour from './ProductTour';
 
 const navItems = [
@@ -18,6 +20,7 @@ export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [logoOk, setLogoOk] = useState(true);
+  const others = usePresence(user);
 
   return (
     <div className="flex min-h-full">
@@ -63,6 +66,7 @@ export default function Layout({ children }) {
         </nav>
 
         <div className="mt-auto border-t border-ink-600 p-3">
+          {user && <PresenceBar people={others} />}
           {user && (
             <div className="flex items-center gap-2">
               {user.photoURL && (
