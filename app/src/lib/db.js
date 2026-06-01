@@ -119,6 +119,11 @@ export async function enqueueRun(test, triggeredBy, opts = {}) {
     setupComponentId: opts.setupComponentId || null,
     setupComponentIds: opts.setupComponentIds || null,
     teardownComponentIds: opts.teardownComponentIds || null,
+    // When launched as part of a suite, every run in the batch shares one
+    // suiteRunId so the dashboard can show a single pass/fail for the suite.
+    suiteId: opts.suiteId || null,
+    suiteRunId: opts.suiteRunId || null,
+    suiteName: opts.suiteName || null,
     steps: [],
     durationMs: 0,
     browser: 'chromium',

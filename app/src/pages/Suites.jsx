@@ -4,14 +4,37 @@ import {
   watchSuites,
   watchTests,
   watchComponents,
+  watchRecentRuns,
   createSuite,
   saveSuite,
   deleteSuite,
 } from '../lib/db';
 import { triggerRun } from '../lib/triggerRun';
 import Spinner from '../components/Spinner';
-import { moduleOf } from '../lib/schema';
+import StatusBadge from '../components/StatusBadge';
+import { moduleOf, cryptoId } from '../lib/schema';
+import { timeAgo } from '../lib/format';
 import { useDragSort, moveItem } from '../lib/useDragSort';
+
+const ms = (t) => (t?.toMillis ? t.toMillis() : t?.seconds ? t.seconds * 1000 : 0);
+
+// Given all runs, return the most recent suite-run batch for one suite plus its
+// rolled-up status. A batch is every run sharing the same suiteRunId.
+function latestSuiteRun(suiteId, runs) {
+  const mine = runs.filter((r) => r.suiteId === suiteId && r.suiteRunId);
+  if (mine.length === 0) return null;
+  const batchId = mine.reduce((a, b) => (ms(b.startedAt) > ms(a.startedAt) ? b : a)).suiteRunId;
+  const batch = mine
+    .filter((r) => r.suiteRunId === batchId)
+    .sort((a, b) => ms(a.startedAt) - ms(b.startedAt));
+  const total = batch.length;
+  const passed = batch.filter((r) => r.status === 'passed').length;
+  const pending = batch.some((r) => r.status === 'queued' || r.status === 'running');
+  const failed = batch.some((r) => r.status === 'failed' || r.status === 'error');
+  const status = pending ? 'running' : failed || passed < total ? 'failed' : 'passed';
+  const startedAt = batch.reduce((min, r) => Math.min(min, ms(r.startedAt) || Infinity), Infinity);
+  return { batch, total, passed, status, startedAt };
+}
 import {
   FREQUENCIES,
   WEEKDAYS,
@@ -34,16 +57,19 @@ export default function Suites() {
   const [suites, setSuites] = useState(null);
   const [tests, setTests] = useState([]);
   const [components, setComponents] = useState([]);
+  const [runs, setRuns] = useState([]);
   const [running, setRunning] = useState(null);
 
   useEffect(() => {
     const u1 = watchSuites(setSuites);
     const u2 = watchTests(setTests);
     const u3 = watchComponents(setComponents);
+    const u4 = watchRecentRuns(setRuns, 300);
     return () => {
       u1();
       u2();
       u3();
+      u4();
     };
   }, []);
 
@@ -61,7 +87,9 @@ export default function Suites() {
         alert('This suite has no tests yet.');
         return;
       }
-      const opts = {};
+      // One id shared by every run in this launch, so they roll up to a single
+      // suite pass/fail.
+      const opts = { suiteId: suite.id, suiteRunId: cryptoId(), suiteName: suite.name || '' };
       const sIds = setupIdsOf(suite);
       const tIds = teardownIdsOf(suite);
       if (sIds.length) opts.setupComponentIds = sIds;
@@ -99,6 +127,7 @@ export default function Suites() {
             suite={s}
             tests={tests}
             components={components}
+            lastRun={latestSuiteRun(s.id, runs)}
             running={running === s.id}
             onRun={() => runSuite(s)}
             tour={i === 0 ? 'suite-card' : undefined}
@@ -109,7 +138,7 @@ export default function Suites() {
   );
 }
 
-function SuiteCard({ suite, tests, components, running, onRun, tour }) {
+function SuiteCard({ suite, tests, components, lastRun, running, onRun, tour }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(suite.name);
 
@@ -156,6 +185,15 @@ function SuiteCard({ suite, tests, components, running, onRun, tour }) {
             {teardownIds.length > 0 && <span>· {teardownIds.length} teardown</span>}
           </span>
         </button>
+        {lastRun && (
+          <div className="flex items-center gap-2" title="Result of the last time this suite ran">
+            <StatusBadge status={lastRun.status} />
+            <span className="text-xs text-gray-500">
+              {lastRun.passed}/{lastRun.total} passed
+              {Number.isFinite(lastRun.startedAt) ? ` · ${timeAgo(lastRun.startedAt)}` : ''}
+            </span>
+          </div>
+        )}
         <div className="flex gap-2">
           <button onClick={onRun} disabled={running} className="btn-primary py-1.5 px-3 text-xs">
             {running ? 'Queuing…' : '▶ Run suite'}
@@ -171,6 +209,34 @@ function SuiteCard({ suite, tests, components, running, onRun, tour }) {
 
       {open && (
         <div className="space-y-4 border-t border-ink-600 bg-gray-50 p-4" data-tour="suite-panel">
+          {lastRun && (
+            <div className="rounded-lg border border-ink-600 bg-white p-3">
+              <div className="label mb-1 flex items-center gap-2">
+                <span>Last run</span>
+                <StatusBadge status={lastRun.status} />
+                <span className="font-normal normal-case tracking-normal text-gray-400">
+                  {lastRun.passed}/{lastRun.total} passed
+                  {Number.isFinite(lastRun.startedAt) ? ` · ${timeAgo(lastRun.startedAt)}` : ''}
+                </span>
+              </div>
+              <ul className="divide-y divide-ink-600">
+                {lastRun.batch.map((r) => (
+                  <li key={r.id} className="flex items-center gap-2 py-1.5 text-sm">
+                    <StatusBadge status={r.status} />
+                    <Link
+                      to={`/runs/${r.id}`}
+                      className="flex-1 truncate text-gray-700 hover:text-brand hover:underline"
+                      title="Open this run"
+                    >
+                      {r.testName}
+                    </Link>
+                    <span className="text-xs text-gray-400">{timeAgo(r.startedAt)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div>
             <label className="label">Suite name</label>
             <input
