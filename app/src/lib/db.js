@@ -14,7 +14,10 @@ import {
   onSnapshot,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
+
+const FEEDBACK_NOTIFY_URL =
+  import.meta.env.VITE_FEEDBACK_NOTIFY_URL || '/.netlify/functions/notify-feedback';
 
 // ---- Tests ----
 
@@ -215,7 +218,33 @@ export async function createFeedback(data) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+  // Fire-and-forget Discord ping. The feedback is already saved above, so a
+  // webhook hiccup must never make submitting fail — swallow any error.
+  notifyFeedbackDiscord({
+    title: data.title || '',
+    category: data.category || 'Feature request',
+    details: data.details || '',
+    authorName: data.authorName || null,
+    authorEmail: data.authorEmail || null,
+  });
   return ref.id;
+}
+
+async function notifyFeedbackDiscord(payload) {
+  try {
+    const user = auth.currentUser;
+    const idToken = user ? await user.getIdToken() : null;
+    await fetch(FEEDBACK_NOTIFY_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    /* notification is best-effort; ignore failures */
+  }
 }
 
 export async function saveFeedback(id, data) {
