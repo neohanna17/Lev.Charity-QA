@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { watchRecentRuns, watchTests } from '../lib/db';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { watchRecentRuns, watchTests, deleteRun } from '../lib/db';
 import StatusBadge from '../components/StatusBadge';
 import Spinner from '../components/Spinner';
 import { timeAgo, fmtDuration, tsToDate } from '../lib/format';
@@ -19,6 +19,7 @@ const VIEWS = [
 ];
 
 const toMs = (t) => tsToDate(t)?.getTime() || 0;
+const isFail = (s) => s === 'failed' || s === 'error';
 
 // Bucket a date into a friendly day label relative to today.
 function dayBucket(date) {
@@ -39,14 +40,13 @@ function dayBucket(date) {
 // Roll up a suite-run batch (runs that share a suiteRunId) into one status.
 function suiteStatus(runs) {
   if (runs.some((r) => r.status === 'running' || r.status === 'queued')) return 'running';
-  if (runs.some((r) => r.status === 'failed' || r.status === 'error')) return 'failed';
+  if (runs.some((r) => isFail(r.status))) return 'failed';
   if (runs.length && runs.every((r) => r.status === 'passed')) return 'passed';
   return 'failed';
 }
 
 // Turn a flat (newest-first) run list into ordered entries: each is either a
-// single standalone run or a grouped suite run (all the tests that ran together
-// as one suite execution).
+// single standalone run or a grouped suite run.
 function buildEntries(runs) {
   const entries = [];
   const bySuiteRun = {};
@@ -54,13 +54,7 @@ function buildEntries(runs) {
     if (r.suiteRunId) {
       let e = bySuiteRun[r.suiteRunId];
       if (!e) {
-        e = {
-          kind: 'suite',
-          id: r.suiteRunId,
-          suiteName: r.suiteName || 'Suite',
-          runs: [],
-          sortTs: toMs(r.startedAt),
-        };
+        e = { kind: 'suite', id: r.suiteRunId, suiteName: r.suiteName || 'Suite', runs: [], sortTs: toMs(r.startedAt) };
         bySuiteRun[r.suiteRunId] = e;
         entries.push(e);
       }
@@ -73,13 +67,21 @@ function buildEntries(runs) {
   return entries;
 }
 
+// All run ids contained in an entry (a single run, or every test of a suite).
+const runIdsOf = (e) => (e.kind === 'suite' ? e.runs.map((r) => r.id) : [e.run.id]);
+
+const NCOLS = 7;
+
 export default function Runs() {
+  const navigate = useNavigate();
   const [runs, setRuns] = useState(null);
   const [tests, setTests] = useState([]);
   const [status, setStatus] = useState('all');
   const [module, setModule] = useState('all');
   const [search, setSearch] = useState('');
   const [view, setView] = useState('time');
+  const [selected, setSelected] = useState(() => new Set());
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const u1 = watchRecentRuns(setRuns, 200);
@@ -96,12 +98,8 @@ export default function Runs() {
     return m;
   }, [tests]);
 
-  const modules = useMemo(
-    () => [...new Set(Object.values(moduleByTest))].sort(),
-    [moduleByTest],
-  );
+  const modules = useMemo(() => [...new Set(Object.values(moduleByTest))].sort(), [moduleByTest]);
 
-  // Module + search filter first (per-run), then we group what survives.
   const baseFiltered = useMemo(() => {
     if (!runs) return [];
     const q = search.trim().toLowerCase();
@@ -115,20 +113,17 @@ export default function Runs() {
 
   const entries = useMemo(() => buildEntries(baseFiltered), [baseFiltered]);
 
-  // Status filter applies to the *entry*: a single run by its own status, a
-  // suite run by its rolled-up pass/fail so "Failed" surfaces failed suites.
   const statusEntries = useMemo(() => {
     if (status === 'all') return entries;
     return entries.filter((e) => {
       const st = e.kind === 'suite' ? suiteStatus(e.runs) : e.run.status;
-      if (status === 'failed') return st === 'failed' || st === 'error';
+      if (status === 'failed') return isFail(st);
       if (status === 'passed') return st === 'passed';
       if (status === 'running') return st === 'running' || st === 'queued';
       return true;
     });
   }, [entries, status]);
 
-  // ----- grouping for display -----
   const timeGroups = useMemo(() => {
     const map = new Map();
     for (const e of statusEntries) {
@@ -144,12 +139,9 @@ export default function Runs() {
     for (const e of statusEntries) {
       const key = e.kind === 'suite' ? `s:${e.suiteName}` : '__individual__';
       const label = e.kind === 'suite' ? e.suiteName : 'Individual tests';
-      if (!map.has(key)) map.set(key, { key, label, isSuite: e.kind === 'suite', entries: [], order: 0 });
-      const g = map.get(key);
-      g.entries.push(e);
-      g.order = Math.max(g.order, e.sortTs);
+      if (!map.has(key)) map.set(key, { key, label, isSuite: e.kind === 'suite', entries: [] });
+      map.get(key).entries.push(e);
     }
-    // Suites first (alphabetical), individual tests last.
     return [...map.values()].sort((a, b) => {
       if (a.key === '__individual__') return 1;
       if (b.key === '__individual__') return -1;
@@ -157,9 +149,47 @@ export default function Runs() {
     });
   }, [statusEntries]);
 
+  // Every run id currently visible (used by select-all and cleanup helpers).
+  const visibleRunIds = useMemo(() => statusEntries.flatMap(runIdsOf), [statusEntries]);
+  const failedVisibleIds = useMemo(
+    () =>
+      statusEntries.flatMap((e) =>
+        (e.kind === 'suite' ? e.runs : [e.run]).filter((r) => isFail(r.status)).map((r) => r.id),
+      ),
+    [statusEntries],
+  );
+
   if (!runs) return <Spinner label="Loading runs…" />;
 
-  const shownCount = statusEntries.reduce((n, e) => n + (e.kind === 'suite' ? e.runs.length : 1), 0);
+  // ----- selection helpers -----
+  const toggleIds = (ids, on) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => (on ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  const toggleOne = (id) => toggleIds([id], !selected.has(id));
+  const clearSel = () => setSelected(new Set());
+  const allVisibleSelected = visibleRunIds.length > 0 && visibleRunIds.every((id) => selected.has(id));
+  const selectFailed = () => setSelected(new Set(failedVisibleIds));
+
+  async function deleteSelected() {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} run(s)? Their video, trace and screenshots are cleaned up automatically. This cannot be undone.`))
+      return;
+    setDeleting(true);
+    try {
+      await Promise.all([...selected].map((id) => deleteRun(id).catch(() => {})));
+      clearSel();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const groups = view === 'time' ? timeGroups : suiteGroups;
+  const shownCount = visibleRunIds.length;
+
+  const rowProps = { moduleByTest, selected, toggleOne, toggleIds, navigate };
 
   return (
     <div>
@@ -195,11 +225,7 @@ export default function Runs() {
             </button>
           ))}
         </div>
-        <select
-          className="input max-w-[180px]"
-          value={module}
-          onChange={(e) => setModule(e.target.value)}
-        >
+        <select className="input max-w-[180px]" value={module} onChange={(e) => setModule(e.target.value)}>
           <option value="all">All modules</option>
           {modules.map((m) => (
             <option key={m} value={m}>
@@ -208,7 +234,7 @@ export default function Runs() {
           ))}
         </select>
         <input
-          className="input max-w-[220px]"
+          className="input max-w-[200px]"
           placeholder="Search test or suite…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -218,118 +244,197 @@ export default function Runs() {
         </span>
       </div>
 
+      {/* Cleanup / bulk-delete bar */}
+      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-ink-600 bg-white px-3 py-2 text-xs">
+        {selected.size > 0 ? (
+          <>
+            <span className="font-medium text-gray-700">{selected.size} selected</span>
+            <button onClick={deleteSelected} disabled={deleting} className="btn-danger py-1 px-2.5">
+              {deleting ? 'Deleting…' : `Delete ${selected.size} selected`}
+            </button>
+            <button onClick={clearSel} className="btn-ghost py-1 px-2.5">
+              Clear
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="text-gray-500">Clean up:</span>
+            <button
+              onClick={selectFailed}
+              disabled={failedVisibleIds.length === 0}
+              className="btn-ghost py-1 px-2.5"
+              title="Select every failed run shown, so you can delete them in one go"
+            >
+              Select failed ({failedVisibleIds.length})
+            </button>
+            <span className="text-gray-400">
+              or tick rows to select. Selecting a suite row selects all its tests.
+            </span>
+          </>
+        )}
+      </div>
+
       {statusEntries.length === 0 ? (
         <div className="card mt-4 p-10 text-center text-gray-500">No runs match these filters.</div>
-      ) : view === 'time' ? (
-        <div className="mt-6 space-y-7" data-tour="runs-list">
-          {timeGroups.map((g) => (
-            <section key={g.key}>
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                {g.label}
-              </h2>
-              <div className="space-y-2">
-                {g.entries.map((e) =>
-                  e.kind === 'suite' ? (
-                    <SuiteRunGroup key={e.id} entry={e} moduleByTest={moduleByTest} />
-                  ) : (
-                    <div key={e.id} className="card overflow-hidden">
-                      <RunRow run={e.run} moduleByTest={moduleByTest} />
-                    </div>
-                  ),
-                )}
-              </div>
-            </section>
-          ))}
-        </div>
       ) : (
-        <div className="mt-6 space-y-7" data-tour="runs-list">
-          {suiteGroups.map((g) => (
-            <section key={g.key}>
-              <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                {g.isSuite && <span className="text-brand">◆</span>}
-                {g.label}
-              </h2>
-              <div className="space-y-2">
+        <div className="card mt-4 overflow-x-auto" data-tour="runs-list">
+          <table className="w-full text-sm">
+            <thead className="border-b border-ink-600 text-left text-xs uppercase tracking-wide text-gray-400">
+              <tr>
+                <th className="w-8 px-3 py-2">
+                  <CheckBox
+                    checked={allVisibleSelected}
+                    indeterminate={!allVisibleSelected && visibleRunIds.some((id) => selected.has(id))}
+                    onChange={(on) => toggleIds(visibleRunIds, on)}
+                    title="Select all shown"
+                  />
+                </th>
+                <th className="px-2 py-2 font-semibold">Status</th>
+                <th className="px-2 py-2 font-semibold">Test</th>
+                <th className="hidden px-2 py-2 font-semibold sm:table-cell">Module</th>
+                <th className="hidden px-2 py-2 font-semibold lg:table-cell">Triggered by</th>
+                <th className="hidden px-2 py-2 text-right font-semibold sm:table-cell">Duration</th>
+                <th className="px-2 py-2 text-right font-semibold">When</th>
+              </tr>
+            </thead>
+            {groups.map((g) => (
+              <tbody key={g.key}>
+                <tr className="bg-gray-50">
+                  <td colSpan={NCOLS} className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                    <span className="flex items-center gap-1.5">
+                      {g.isSuite && <span className="text-brand">◆</span>}
+                      {g.label}
+                    </span>
+                  </td>
+                </tr>
                 {g.entries.map((e) =>
                   e.kind === 'suite' ? (
-                    <SuiteRunGroup key={e.id} entry={e} moduleByTest={moduleByTest} hideName />
+                    <SuiteRows key={e.id} entry={e} {...rowProps} hideName={view === 'suite'} />
                   ) : (
-                    <div key={e.id} className="card overflow-hidden">
-                      <RunRow run={e.run} moduleByTest={moduleByTest} />
-                    </div>
+                    <RunRow key={e.id} run={e.run} {...rowProps} />
                   ),
                 )}
-              </div>
-            </section>
-          ))}
+              </tbody>
+            ))}
+          </table>
         </div>
       )}
     </div>
   );
 }
 
-// A single run as a clickable row.
-function RunRow({ run, moduleByTest, nested = false }) {
+// A checkbox that supports the indeterminate (partial) state.
+function CheckBox({ checked, indeterminate, onChange, title }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = !!indeterminate && !checked;
+  }, [indeterminate, checked]);
   return (
-    <Link
-      to={`/runs/${run.id}`}
-      className={`flex items-center gap-4 px-4 py-3 hover:bg-ink-700/50 ${nested ? 'pl-6' : ''}`}
-    >
-      <StatusBadge status={run.status} />
-      <span className="min-w-0 flex-1 truncate font-medium">{run.testName}</span>
-      <span className="hidden text-xs text-gray-500 md:inline">
-        {moduleByTest[run.testId] || '—'}
-      </span>
-      {!nested && (
-        <span className="hidden text-xs text-gray-500 sm:inline">{run.triggeredBy}</span>
-      )}
-      <span className="text-xs text-gray-500">{fmtDuration(run.durationMs)}</span>
-      <span className="w-20 text-right text-xs text-gray-500">{timeAgo(run.startedAt)}</span>
-    </Link>
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      title={title}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => onChange(e.target.checked)}
+      className="h-4 w-4 accent-brand"
+    />
   );
 }
 
-// A suite execution: header with the suite's rolled-up pass/fail, expandable to
-// show each test that ran as part of it.
-function SuiteRunGroup({ entry, moduleByTest, hideName = false }) {
+// A single run as a table row.
+function RunRow({ run, moduleByTest, selected, toggleOne, navigate, nested = false }) {
+  const go = () => navigate(`/runs/${run.id}`);
+  return (
+    <tr className="cursor-pointer border-b border-ink-600 last:border-0 hover:bg-ink-700/40" onClick={go}>
+      <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+        <CheckBox checked={selected.has(run.id)} onChange={() => toggleOne(run.id)} title="Select run" />
+      </td>
+      <td className="px-2 py-2.5">
+        <StatusBadge status={run.status} />
+      </td>
+      <th scope="row" className="max-w-0 px-2 py-2.5 text-left font-medium">
+        <span className="block truncate">
+          {nested && <span className="mr-1 text-gray-300">↳</span>}
+          {run.testName}
+        </span>
+      </th>
+      <td className="hidden px-2 py-2.5 text-xs text-gray-500 sm:table-cell">
+        {moduleByTest[run.testId] || '—'}
+      </td>
+      <td className="hidden px-2 py-2.5 text-xs text-gray-500 lg:table-cell">
+        <span className="block max-w-[180px] truncate">{run.triggeredBy || '—'}</span>
+      </td>
+      <td className="hidden px-2 py-2.5 text-right text-xs text-gray-500 sm:table-cell">
+        {fmtDuration(run.durationMs)}
+      </td>
+      <td className="px-2 py-2.5 text-right text-xs text-gray-500">{timeAgo(run.startedAt)}</td>
+    </tr>
+  );
+}
+
+// A suite execution: a header row with the rolled-up pass/fail, then (when
+// expanded) one indented row per test that ran in it.
+function SuiteRows({ entry, moduleByTest, selected, toggleOne, toggleIds, navigate, hideName }) {
   const [open, setOpen] = useState(false);
   const st = suiteStatus(entry.runs);
   const passed = entry.runs.filter((r) => r.status === 'passed').length;
   const total = entry.runs.length;
+  const ids = entry.runs.map((r) => r.id);
+  const allSel = ids.every((id) => selected.has(id));
+  const someSel = ids.some((id) => selected.has(id));
 
   return (
-    <div className="card overflow-hidden ring-1 ring-brand/10">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-ink-700/50"
-      >
-        <StatusBadge status={st} />
-        <span className="flex items-center gap-1.5 truncate font-medium">
-          <span className="text-brand">◆</span>
-          {hideName ? `Suite run · ${total} test${total === 1 ? '' : 's'}` : entry.suiteName}
-        </span>
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-            st === 'passed'
-              ? 'bg-green-500/15 text-green-700'
-              : st === 'running'
-                ? 'bg-blue-500/15 text-blue-700'
-                : 'bg-red-500/15 text-red-700'
-          }`}
-        >
-          {passed}/{total} passed
-        </span>
-        <span className="ml-auto text-xs text-gray-500">{timeAgo(entry.sortTs)}</span>
-        <span className={`text-gray-300 transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
-      </button>
-      {open && (
-        <div className="divide-y divide-ink-600 border-t border-ink-600 bg-gray-50/50">
-          {entry.runs.map((r) => (
-            <RunRow key={r.id} run={r} moduleByTest={moduleByTest} nested />
-          ))}
-        </div>
-      )}
-    </div>
+    <>
+      <tr className="border-b border-ink-600 bg-brand/[0.03] hover:bg-brand/[0.06]">
+        <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+          <CheckBox
+            checked={allSel}
+            indeterminate={someSel}
+            onChange={(on) => toggleIds(ids, on)}
+            title="Select all tests in this suite run"
+          />
+        </td>
+        <td className="px-2 py-2.5 cursor-pointer" onClick={() => setOpen((o) => !o)}>
+          <StatusBadge status={st} />
+        </td>
+        <th scope="row" className="max-w-0 px-2 py-2.5 text-left cursor-pointer" onClick={() => setOpen((o) => !o)}>
+          <span className="flex items-center gap-1.5">
+            <span className={`text-gray-300 transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
+            <span className="text-brand">◆</span>
+            <span className="truncate font-semibold">
+              {hideName ? `Suite run · ${total} test${total === 1 ? '' : 's'}` : entry.suiteName}
+            </span>
+            <span
+              className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
+                st === 'passed'
+                  ? 'bg-green-500/15 text-green-700'
+                  : st === 'running'
+                    ? 'bg-blue-500/15 text-blue-700'
+                    : 'bg-red-500/15 text-red-700'
+              }`}
+            >
+              {passed}/{total} passed
+            </span>
+          </span>
+        </th>
+        <td className="hidden px-2 py-2.5 text-xs text-brand sm:table-cell">Suite</td>
+        <td className="hidden px-2 py-2.5 lg:table-cell" />
+        <td className="hidden sm:table-cell" />
+        <td className="px-2 py-2.5 text-right text-xs text-gray-500">{timeAgo(entry.sortTs)}</td>
+      </tr>
+      {open &&
+        entry.runs.map((r) => (
+          <RunRow
+            key={r.id}
+            run={r}
+            moduleByTest={moduleByTest}
+            selected={selected}
+            toggleOne={toggleOne}
+            navigate={navigate}
+            nested
+          />
+        ))}
+    </>
   );
 }
