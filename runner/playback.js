@@ -63,9 +63,17 @@ async function execStep(page, step, result) {
       await page.waitForTimeout(Number(step.value) || 0);
       return;
     case 'assertUrl': {
-      const url = page.url();
-      if (!url.includes(step.value))
-        throw new Error(`URL "${url}" does not contain "${step.value}"`);
+      // Wait for the URL to contain the expected text rather than checking
+      // instantly: a click that logs in / navigates redirects asynchronously,
+      // so the URL often hasn't changed yet the moment this step starts.
+      // page.waitForURL also catches SPA (History API) route changes.
+      try {
+        await page.waitForURL((u) => u.toString().includes(step.value), {
+          timeout: DEFAULT_TIMEOUT,
+        });
+      } catch {
+        throw new Error(`URL "${page.url()}" does not contain "${step.value}"`);
+      }
       return;
     }
     case 'assertText': {
