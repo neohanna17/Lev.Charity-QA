@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   watchSuites,
   watchTests,
@@ -10,6 +11,7 @@ import {
 import { triggerRun } from '../lib/triggerRun';
 import Spinner from '../components/Spinner';
 import { moduleOf } from '../lib/schema';
+import { useDragSort, moveItem } from '../lib/useDragSort';
 import {
   FREQUENCIES,
   WEEKDAYS,
@@ -128,6 +130,10 @@ function SuiteCard({ suite, tests, components, running, onRun, tour }) {
     saveSuite(suite.id, { testIds: [...next] });
   }
 
+  function reorderTests(from, to) {
+    saveSuite(suite.id, { testIds: moveItem(suite.testIds || [], from, to) });
+  }
+
   return (
     <div className="card overflow-hidden" data-tour={tour}>
       {/* Summary row — always visible */}
@@ -199,8 +205,10 @@ function SuiteCard({ suite, tests, components, running, onRun, tour }) {
           <TestPicker
             tests={tests}
             selected={selected}
+            orderedIds={suite.testIds || []}
             onToggle={toggleTest}
             onBulk={bulkTests}
+            onReorder={reorderTests}
           />
         </div>
       )}
@@ -217,19 +225,15 @@ function ComponentList({ title, help, ids, components, onChange }) {
   }, [components]);
 
   const available = components.filter((c) => !ids.includes(c.id));
+  const { dragIndex, overIndex, itemProps, handleProps } = useDragSort((from, to) =>
+    onChange(moveItem(ids, from, to)),
+  );
 
   function add(id) {
     if (id) onChange([...ids, id]);
   }
   function remove(id) {
     onChange(ids.filter((x) => x !== id));
-  }
-  function move(idx, dir) {
-    const next = [...ids];
-    const j = idx + dir;
-    if (j < 0 || j >= next.length) return;
-    [next[idx], next[j]] = [next[j], next[idx]];
-    onChange(next);
   }
 
   return (
@@ -240,28 +244,22 @@ function ComponentList({ title, help, ids, components, onChange }) {
         {ids.map((id, idx) => (
           <li
             key={id}
-            className="flex items-center gap-2 rounded-md border border-ink-600 bg-gray-50 px-2 py-1 text-xs"
+            {...itemProps(idx)}
+            className={`flex items-center gap-2 rounded-md border border-ink-600 bg-gray-50 px-2 py-1 text-xs transition ${
+              dragIndex === idx ? 'opacity-40' : ''
+            } ${overIndex === idx && dragIndex != null && dragIndex !== idx ? 'ring-2 ring-brand' : ''}`}
           >
+            <span
+              {...handleProps(idx)}
+              className="cursor-grab select-none text-gray-300 hover:text-gray-500 active:cursor-grabbing"
+              title="Drag to reorder"
+            >
+              ⠿
+            </span>
             <span className="text-gray-400">{idx + 1}.</span>
             <span className="flex-1 truncate">
               {byId[id]?.name || '(deleted component)'}
             </span>
-            <button
-              onClick={() => move(idx, -1)}
-              disabled={idx === 0}
-              className="px-1 text-gray-400 hover:text-gray-700 disabled:opacity-30"
-              title="Move up"
-            >
-              ↑
-            </button>
-            <button
-              onClick={() => move(idx, 1)}
-              disabled={idx === ids.length - 1}
-              className="px-1 text-gray-400 hover:text-gray-700 disabled:opacity-30"
-              title="Move down"
-            >
-              ↓
-            </button>
             <button
               onClick={() => remove(id)}
               className="px-1 text-gray-400 hover:text-red-600"
@@ -294,9 +292,10 @@ function ComponentList({ title, help, ids, components, onChange }) {
 
 // Pick tests for the suite, filtered by module and name so a long list stays
 // manageable.
-function TestPicker({ tests, selected, onToggle, onBulk }) {
+function TestPicker({ tests, selected, orderedIds, onToggle, onBulk, onReorder }) {
   const [module, setModule] = useState('all');
   const [search, setSearch] = useState('');
+  const { dragIndex, overIndex, itemProps, handleProps } = useDragSort(onReorder);
 
   const modules = useMemo(
     () => ['all', ...[...new Set(tests.map(moduleOf))].sort()],
@@ -315,9 +314,10 @@ function TestPicker({ tests, selected, onToggle, onBulk }) {
   const filteredIds = filtered.map((t) => t.id);
   const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selected.has(id));
 
-  // The tests currently in the suite, in a stable order, so they can be
-  // reviewed and removed without hunting through the filtered picker below.
-  const chosen = tests.filter((t) => selected.has(t.id));
+  // The tests currently in the suite, in their saved (drag-sorted) order, so
+  // they can be reordered, opened to edit, or removed without hunting through
+  // the filtered picker below.
+  const chosen = orderedIds.map((id) => tests.find((t) => t.id === id)).filter(Boolean);
 
   return (
     <div className="rounded-lg border border-ink-600 bg-white p-3" data-tour="suite-tests">
@@ -333,30 +333,53 @@ function TestPicker({ tests, selected, onToggle, onBulk }) {
           None yet — tick tests below to add them.
         </p>
       ) : (
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          {chosen.map((t) => (
-            <span
-              key={t.id}
-              className="inline-flex items-center gap-1 rounded-full border border-ink-600 bg-gray-50 py-0.5 pl-2.5 pr-1 text-xs"
-            >
-              <span className="max-w-[180px] truncate">{t.name}</span>
-              <button
-                onClick={() => onToggle(t.id)}
-                className="grid h-4 w-4 place-items-center rounded-full text-gray-400 hover:bg-red-500/10 hover:text-red-600"
-                title={`Remove "${t.name}" from this suite`}
+        <>
+          <p className="mb-1.5 text-xs text-gray-400">
+            Drag to reorder · click a name to open and edit it.
+          </p>
+          <ol className="mb-2 space-y-1">
+            {chosen.map((t, idx) => (
+              <li
+                key={t.id}
+                {...itemProps(idx)}
+                className={`flex items-center gap-2 rounded-md border border-ink-600 bg-gray-50 px-2 py-1.5 text-xs transition ${
+                  dragIndex === idx ? 'opacity-40' : ''
+                } ${overIndex === idx && dragIndex != null && dragIndex !== idx ? 'ring-2 ring-brand' : ''}`}
               >
-                ✕
-              </button>
-            </span>
-          ))}
+                <span
+                  {...handleProps(idx)}
+                  className="cursor-grab select-none text-gray-300 hover:text-gray-500 active:cursor-grabbing"
+                  title="Drag to reorder"
+                >
+                  ⠿
+                </span>
+                <span className="text-gray-400">{idx + 1}.</span>
+                <Link
+                  to={`/tests/${t.id}`}
+                  className="flex-1 truncate font-medium text-gray-700 hover:text-brand hover:underline"
+                  title={`Open "${t.name}" to edit`}
+                >
+                  {t.name}
+                </Link>
+                <span className="text-gray-400">{moduleOf(t)}</span>
+                <button
+                  onClick={() => onToggle(t.id)}
+                  className="grid h-4 w-4 place-items-center rounded-full text-gray-400 hover:bg-red-500/10 hover:text-red-600"
+                  title={`Remove "${t.name}" from this suite`}
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ol>
           <button
             onClick={() => onBulk([...selected], false)}
-            className="rounded-full px-2 py-0.5 text-xs text-gray-400 hover:text-red-600"
+            className="mb-3 text-xs text-gray-400 hover:text-red-600"
             title="Remove all tests from this suite"
           >
             Remove all
           </button>
-        </div>
+        </>
       )}
 
       <div className="flex flex-wrap items-center gap-2">

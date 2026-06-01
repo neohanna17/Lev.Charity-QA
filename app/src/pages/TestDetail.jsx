@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   getTest,
@@ -16,17 +16,33 @@ import Spinner from '../components/Spinner';
 import StepsEditor from '../components/StepsEditor';
 import { timeAgo, fmtDuration } from '../lib/format';
 
+// The persisted shape of a test (kept in one place so auto-save and run-flush
+// always write the same fields).
+function snapshot(test) {
+  return {
+    name: test.name,
+    description: test.description || '',
+    module: test.module || '',
+    startUrl: test.startUrl || '',
+    steps: test.steps || [],
+    status: test.status || 'active',
+  };
+}
+
 export default function TestDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [test, setTest] = useState(null);
   const [runs, setRuns] = useState([]);
   const [components, setComponents] = useState([]);
-  const [dirty, setDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
+  // Auto-save: 'saved' | 'unsaved' | 'saving'. No manual Save button — edits
+  // (including step edits) persist automatically a moment after you stop.
+  const [saveState, setSaveState] = useState('saved');
   const [running, setRunning] = useState(false);
+  const freshLoad = useRef(true); // skip auto-save right after (re)loading a test
 
   useEffect(() => {
+    freshLoad.current = true;
     getTest(id).then((t) => {
       if (!t) navigate('/');
       else setTest(t);
@@ -39,32 +55,38 @@ export default function TestDetail() {
     };
   }, [id]);
 
+  // Debounced auto-save whenever the test changes.
+  useEffect(() => {
+    if (!test) return;
+    if (freshLoad.current) {
+      freshLoad.current = false;
+      return;
+    }
+    setSaveState('saving');
+    const handle = setTimeout(() => {
+      saveTest(id, snapshot(test))
+        .then(() => setSaveState('saved'))
+        .catch(() => setSaveState('unsaved'));
+    }, 700);
+    return () => clearTimeout(handle);
+  }, [test, id]);
+
   if (!test) return <Spinner label="Loading test…" />;
 
   const update = (patch) => {
     setTest((t) => ({ ...t, ...patch }));
-    setDirty(true);
+    setSaveState('unsaved');
   };
 
-  async function handleSave() {
-    setSaving(true);
-    try {
-      await saveTest(id, {
-        name: test.name,
-        description: test.description || '',
-        module: test.module || '',
-        startUrl: test.startUrl || '',
-        steps: test.steps || [],
-        status: test.status || 'active',
-      });
-      setDirty(false);
-    } finally {
-      setSaving(false);
-    }
+  // Flush any pending edit immediately (used before running).
+  async function saveNow() {
+    setSaveState('saving');
+    await saveTest(id, snapshot(test));
+    setSaveState('saved');
   }
 
   async function handleRun(opts) {
-    if (dirty) await handleSave();
+    await saveNow();
     setRunning(true);
     try {
       const runId = await triggerRun(test, opts);
@@ -95,7 +117,7 @@ export default function TestDetail() {
     }
     const name = prompt('Name this reusable component:', `${test.name} steps`);
     if (!name) return;
-    if (dirty) await handleSave();
+    await saveNow();
     await createComponent({ name, steps });
     if (confirm(`Saved "${name}" as a reusable component. Open the Components page?`))
       navigate('/components');
@@ -164,9 +186,19 @@ export default function TestDetail() {
           <button onClick={() => handleRun()} disabled={running} className="btn-primary">
             {running ? 'Starting…' : '▶ Run test'}
           </button>
-          <button onClick={handleSave} disabled={!dirty || saving} className="btn-ghost">
-            {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
-          </button>
+          <div
+            className="flex items-center justify-center gap-1.5 text-xs text-gray-400"
+            title="Changes save automatically"
+          >
+            {saveState === 'saving' && (
+              <>
+                <span className="h-2.5 w-2.5 animate-spin rounded-full border border-gray-300 border-t-gray-500" />
+                Saving…
+              </>
+            )}
+            {saveState === 'saved' && <>✓ All changes saved</>}
+            {saveState === 'unsaved' && <span className="text-amber-600">Unsaved changes…</span>}
+          </div>
           <button
             onClick={handleBaseline}
             disabled={running}

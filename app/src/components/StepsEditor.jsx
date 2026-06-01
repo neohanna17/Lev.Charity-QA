@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { STEP_TYPES, stepLabel, emptyStep, cryptoId } from '../lib/schema';
+import { useDragSort, moveItem } from '../lib/useDragSort';
 
 // Ordered, editable step list. Used by both the test editor and the reusable
 // component editor. Pass `components` + `allowComponents` to enable inserting
@@ -12,27 +13,29 @@ export default function StepsEditor({
   onRunFrom,
   onRunUntil,
 }) {
+  // `editing` holds the id of the open step (not its index) so it stays
+  // attached to the right step after a drag-reorder.
   const [editing, setEditing] = useState(null);
   const list = steps || [];
+  const toggle = (sid) => setEditing((cur) => (cur === sid ? null : sid));
+
+  const { dragIndex, overIndex, itemProps, handleProps } = useDragSort((from, to) =>
+    onChange(moveItem(list, from, to)),
+  );
 
   const updateStep = (i, patch) =>
     onChange(list.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
-  const addStep = () => onChange([...list, emptyStep()]);
+  const addStep = () => {
+    const s = emptyStep();
+    onChange([...list, s]);
+    setEditing(s.id); // open the new step so it's ready to fill in
+  };
   const addComponent = () => {
-    onChange([
-      ...list,
-      { id: cryptoId(), type: 'component', componentId: '', componentName: '', selectors: [] },
-    ]);
-    setEditing(list.length); // open the new step so they can pick which component
+    const s = { id: cryptoId(), type: 'component', componentId: '', componentName: '', selectors: [] };
+    onChange([...list, s]);
+    setEditing(s.id); // open the new step so they can pick which component
   };
   const removeStep = (i) => onChange(list.filter((_, idx) => idx !== i));
-  const moveStep = (i, dir) => {
-    const next = [...list];
-    const j = i + dir;
-    if (j < 0 || j >= next.length) return;
-    [next[i], next[j]] = [next[j], next[i]];
-    onChange(next);
-  };
 
   const labelFor = (step) => {
     if (step.type === 'component') {
@@ -71,64 +74,86 @@ export default function StepsEditor({
         </div>
       )}
       <ol className="space-y-2">
-        {list.map((step, i) => (
-          <li key={step.id || i} className="card overflow-hidden">
-            <div className="flex items-center gap-3 px-3 py-2.5">
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-ink-600 text-xs text-gray-400">
-                {i + 1}
-              </span>
-              <span
-                className={`flex-1 truncate text-sm ${step.type === 'component' ? 'text-brand' : ''}`}
-              >
-                {step.type === 'component' && '↳ '}
-                {labelFor(step)}
-              </span>
-              <div className="flex items-center gap-1 text-gray-500">
-                {onRunUntil && (
-                  <button
-                    onClick={() => onRunUntil(i)}
-                    className="px-1 hover:text-brand"
-                    title="Run from the start up to and including this step, then stop"
-                  >
-                    ▶⤒
-                  </button>
-                )}
-                {onRunFrom && (
-                  <button
-                    onClick={() => onRunFrom(i)}
-                    className="px-1 hover:text-brand"
-                    title="Run from this step to the end"
-                  >
-                    ▶↓
-                  </button>
-                )}
-                <button onClick={() => moveStep(i, -1)} className="px-1 hover:text-gray-800">
-                  ↑
-                </button>
-                <button onClick={() => moveStep(i, 1)} className="px-1 hover:text-gray-800">
-                  ↓
-                </button>
-                <button
-                  onClick={() => setEditing(editing === i ? null : i)}
-                  className="px-1.5 hover:text-gray-800"
+        {list.map((step, i) => {
+          const open = editing === step.id;
+          const isDragging = dragIndex === i;
+          const isOver = overIndex === i && dragIndex != null && dragIndex !== i;
+          return (
+            <li
+              key={step.id || i}
+              {...itemProps(i)}
+              className={`card overflow-hidden transition ${isDragging ? 'opacity-40' : ''} ${
+                isOver ? 'ring-2 ring-brand' : ''
+              }`}
+            >
+              <div className="flex items-center gap-1.5 px-2 py-2.5">
+                <span
+                  {...handleProps(i)}
+                  className="cursor-grab select-none px-1 text-base leading-none text-gray-300 hover:text-gray-500 active:cursor-grabbing"
+                  title="Drag to reorder"
                 >
-                  ✎
+                  ⠿
+                </span>
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-ink-600 text-xs text-gray-400">
+                  {i + 1}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => toggle(step.id)}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  title={open ? 'Click to close' : 'Click to edit this step'}
+                >
+                  <span
+                    className={`flex-1 truncate text-sm ${step.type === 'component' ? 'text-brand' : ''}`}
+                  >
+                    {step.type === 'component' && '↳ '}
+                    {labelFor(step)}
+                  </span>
+                  <span
+                    className={`shrink-0 text-gray-300 transition-transform ${open ? 'rotate-90' : ''}`}
+                  >
+                    ›
+                  </span>
                 </button>
-                <button onClick={() => removeStep(i)} className="px-1.5 hover:text-red-400">
-                  ✕
-                </button>
+                <div className="flex items-center gap-1">
+                  {onRunUntil && (
+                    <button
+                      onClick={() => onRunUntil(i)}
+                      className="rounded-md px-1.5 py-0.5 text-xs text-gray-400 hover:bg-ink-700 hover:text-brand"
+                      title="Run from the start up to and including this step, then stop"
+                    >
+                      ▶ to here
+                    </button>
+                  )}
+                  {onRunFrom && (
+                    <button
+                      onClick={() => onRunFrom(i)}
+                      className="rounded-md px-1.5 py-0.5 text-xs text-gray-400 hover:bg-ink-700 hover:text-brand"
+                      title="Run from this step to the end"
+                    >
+                      ▶ from here
+                    </button>
+                  )}
+                  <button
+                    onClick={() => removeStep(i)}
+                    className="rounded-md px-1.5 py-0.5 text-gray-400 hover:bg-red-500/10 hover:text-red-600"
+                    title="Delete this step"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
-            </div>
-            {editing === i && (
-              <StepEditor
-                step={step}
-                onChange={(patch) => updateStep(i, patch)}
-                components={components}
-                allowComponents={allowComponents}
-              />
-            )}
-          </li>
-        ))}
+              {open && (
+                <StepEditor
+                  step={step}
+                  onChange={(patch) => updateStep(i, patch)}
+                  components={components}
+                  allowComponents={allowComponents}
+                />
+              )}
+            </li>
+          );
+        })}
       </ol>
     </div>
   );
