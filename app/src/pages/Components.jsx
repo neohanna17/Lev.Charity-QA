@@ -76,7 +76,7 @@ function ComponentCard({ component, open, onToggle }) {
       </div>
 
       {open && (
-        <div className="space-y-4 border-t border-ink-600 bg-gray-50 p-4">
+        <div className="space-y-4 border-t border-ink-600 bg-gray-50 p-4" data-tour="component-panel">
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="label">Name</label>

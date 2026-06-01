@@ -164,7 +164,7 @@ function SuiteCard({ suite, tests, components, running, onRun, tour }) {
       </div>
 
       {open && (
-        <div className="space-y-4 border-t border-ink-600 bg-gray-50 p-4">
+        <div className="space-y-4 border-t border-ink-600 bg-gray-50 p-4" data-tour="suite-panel">
           <div>
             <label className="label">Suite name</label>
             <input
@@ -320,7 +320,7 @@ function TestPicker({ tests, selected, onToggle, onBulk }) {
   const chosen = tests.filter((t) => selected.has(t.id));
 
   return (
-    <div className="rounded-lg border border-ink-600 bg-white p-3">
+    <div className="rounded-lg border border-ink-600 bg-white p-3" data-tour="suite-tests">
       <div className="label mb-1">
         Tests in this suite
         <span className="ml-2 font-normal normal-case tracking-normal text-gray-400">
@@ -425,7 +425,7 @@ function SchedulePicker({ suite }) {
   const needsTime = ['daily', 'weekdays', 'weekly'].includes(spec.freq);
 
   return (
-    <div className="rounded-lg border border-ink-600 bg-white p-3">
+    <div className="rounded-lg border border-ink-600 bg-white p-3" data-tour="suite-schedule">
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <label className="label">Run automatically</label>

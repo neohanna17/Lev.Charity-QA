@@ -209,12 +209,27 @@ const STEPS = [
     popover: { title: '+ New suite', description: 'Create a group of tests that run together.' },
   },
   {
-    element: '[data-tour="suite-card"]',
-    menu: 'Suites · A suite',
+    path: '/suites',
+    prepare: () => expandInline('[data-tour="suite-card"]', '[data-tour="suite-panel"]'),
+    element: '[data-tour="suite-schedule"]',
+    menu: 'A suite · Schedule',
     popover: {
-      title: 'A suite',
+      title: 'Inside a suite',
       description:
-        'Collapses to a one-line summary (tests · schedule · before/after components). Expand it to set a schedule, add components to run before and after every test (e.g. Log in / Log out), and pick tests filtered by module and search. “▶ Run suite” runs them all now.',
+        'A suite collapses to a one-line summary; expanding it reveals these settings. Up top you can <b>rename</b> it. Here you set when it <b>runs automatically</b> — manual only, every few hours, daily, weekdays or weekly — and the line below shows the schedule in plain English, in your timezone.',
+      side: 'top',
+    },
+  },
+  {
+    path: '/suites',
+    prepare: () => expandInline('[data-tour="suite-card"]', '[data-tour="suite-panel"]'),
+    element: '[data-tour="suite-tests"]',
+    menu: 'A suite · Tests & setup',
+    popover: {
+      title: 'Tests & before/after steps',
+      description:
+        'Pick which tests belong to the suite — filter by module or search, “Select all”, and remove any with its ✕ chip. Just above this, <b>Run before / after each test</b> let you slot in components like <b>Log in</b> (before) and <b>Log out</b> (after) so you don’t repeat them in every test. <b>▶ Run suite</b> (top-right) runs them all now.',
+      side: 'top',
     },
   },
 
@@ -229,12 +244,15 @@ const STEPS = [
     },
   },
   {
-    element: '[data-tour="components-list"]',
-    menu: 'Components · List',
+    path: '/components',
+    prepare: () => expandInline('[data-tour="components-list"]', '[data-tour="component-panel"]'),
+    element: '[data-tour="component-panel"]',
+    menu: 'Inside a component',
     popover: {
-      title: 'Your components',
+      title: 'Inside a component',
       description:
-        'Expand one to edit its steps — every test that uses it updates automatically. You can also create a component straight from a recording in the Chrome extension.',
+        'Expanding a component opens its editor. Give it a <b>name</b> and optional description, then build its <b>steps</b> exactly like a test. The key bit: every test that uses this component picks up your edits <b>automatically</b> — fix the login flow here once and all tests get it. (Components can’t contain other components.) You can also create one straight from a recording in the Chrome extension.',
+      side: 'top',
     },
   },
 
@@ -289,6 +307,18 @@ function waitForEl(selector, timeout = 10000) {
   });
 }
 
+// Suites and components have no detail route — they expand inline. Wait for the
+// first card to render, then click its toggle (the first button inside it) to
+// reveal the panel, unless something is already expanded.
+async function expandInline(cardSelector, panelSelector) {
+  const card = await waitForEl(cardSelector);
+  if (!card) return;
+  if (!document.querySelector(panelSelector)) {
+    card.querySelector('button')?.click();
+    await waitForEl(panelSelector, 3000);
+  }
+}
+
 export default function ProductTour() {
   const navigate = useNavigate();
   const driverRef = useRef(null);
@@ -312,6 +342,15 @@ export default function ProductTour() {
     }
     if (targetPath && targetPath !== window.location.pathname) {
       navRef.current(targetPath);
+    }
+    // `prepare` runs after navigation — e.g. expand an inline card (suites,
+    // components) so the step's target inside it actually renders.
+    if (step?.prepare) {
+      try {
+        await step.prepare();
+      } catch {
+        /* ignore — the popover will simply centre if nothing expanded */
+      }
     }
     await waitForEl(step?.element);
   }, []);
