@@ -26,6 +26,15 @@ const CATEGORY_COLOR = {
   Other: 0x6b7280, // grey
 };
 
+// Heading line per category so a bug reads "Bug feedback", a new feature reads
+// "New feature feedback", etc. — instead of always saying "New feature".
+const CATEGORY_HEADING = {
+  Bug: '🐞 **Bug feedback**',
+  'Feature request': '✨ **New feature feedback**',
+  'Change request': '🔧 **Change request feedback**',
+  Other: '📋 **Feedback**',
+};
+
 function decodeJwtPayload(token) {
   try {
     const part = token.split('.')[1];
@@ -87,6 +96,7 @@ export async function handler(event) {
   }
   const category = clip(body.category, 60) || 'Feature request';
   const details = clip(body.details, 1500);
+  const comment = clip(body.comment, 1000);
   const who = clip(body.authorName || body.authorEmail || 'Someone', 200);
   const type = body.type === 'done' ? 'done' : 'new';
 
@@ -103,7 +113,10 @@ export async function handler(event) {
           title: `✅ ${title}`,
           description: details || undefined,
           color: 0x22c55e, // green
-          fields: [{ name: 'Type', value: category, inline: true }],
+          fields: [
+            { name: 'Type', value: category, inline: true },
+            ...(comment ? [{ name: 'Note', value: comment, inline: false }] : []),
+          ],
           timestamp: new Date().toISOString(),
         },
       ],
@@ -115,11 +128,12 @@ export async function handler(event) {
       { name: 'From', value: who, inline: true },
     ];
     if (body.url) fields.push({ name: 'Open', value: clip(body.url, 400), inline: false });
+    const heading = CATEGORY_HEADING[category] || CATEGORY_HEADING.Other;
     payload = {
       username: 'Lev.Charity QA',
       // Optional mention so a real Discord ping fires. Set DISCORD_FEEDBACK_MENTION
       // to "<@USER_ID>" (or "<@&ROLE_ID>"). allowed_mentions lets it resolve.
-      content: `${mention ? mention + ' ' : ''}📋 **New feature feedback**`,
+      content: `${mention ? mention + ' ' : ''}${heading}`,
       allowed_mentions: { parse: ['users', 'roles'] },
       embeds: [
         {
