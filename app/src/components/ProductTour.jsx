@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
+import { getFirstTestId, getFirstRunId } from '../lib/db';
 
 // Interactive product tour. Mounted once inside the Layout (so it can navigate
 // via React Router) and started by dispatching a `start-product-tour` window
@@ -111,6 +112,7 @@ const STEPS = [
     },
   },
   {
+    path: '/',
     element: '[data-tour="modules-new"]',
     menu: 'Modules · New test',
     popover: {
@@ -120,12 +122,39 @@ const STEPS = [
     },
   },
   {
+    path: '/',
     element: '[data-tour="modules-card"]',
     menu: 'Modules · Cards',
     popover: {
       title: 'Module cards',
       description:
         'Each card shows its test count and health — passing / failing / not run. Empty modules are dashed. Click a card to see its tests, then click a test to open the editor where you Run it, Save, set a visual baseline, Save-as-component, archive or delete.',
+    },
+  },
+
+  // ---- Inside a test (the editor) ----
+  {
+    resolvePath: async () => {
+      const id = await getFirstTestId();
+      return id ? `/tests/${id}` : null;
+    },
+    element: '[data-tour="test-steps"]',
+    menu: 'Inside a test · Steps',
+    popover: {
+      title: 'Building a test, step by step',
+      description:
+        'This is the test editor — the same screen you land on after recording, or after “+ New test”. Each line is one <b>step</b>. Use <b>+ Add step</b> and pick an action: Navigate, Click, Type, Press, Select, Wait, or an <b>Assert</b> (text / visible / URL). <b>+ Add component</b> drops in a reusable block like “Log in”. Drag to reorder, edit values inline. This is how you build or fine-tune a test by hand.',
+      side: 'left',
+    },
+  },
+  {
+    element: '[data-tour="test-actions"]',
+    menu: 'Inside a test · Run & save',
+    popover: {
+      title: 'Run, save & more',
+      description:
+        '<b>▶ Run test</b> queues it on the runner. <b>Save changes</b> stores your edits. <b>Set visual baseline</b> captures the current look so later runs can flag visual changes. <b>Save as component</b> turns these steps into a reusable block. <b>Archive</b> hides a test without deleting it; <b>Delete</b> removes it. The name, module and start-URL fields are just to the left.',
+      side: 'left',
     },
   },
 
@@ -140,12 +169,35 @@ const STEPS = [
     },
   },
   {
+    path: '/runs',
     element: '[data-tour="runs-list"]',
     menu: 'Runs · History',
     popover: {
       title: 'Run history',
       description:
-        'Each row is one execution. Click one to open its detail: the video recording, a downloadable Playwright trace, per-step screenshots and self-heal notes — plus ↻ Re-run, Delete run, and (on failures) Create bug report for Jira.',
+        'Each row is one execution, newest first — status, test name, module, who triggered it and how long it took. Click any row to open it. Let’s open one now →',
+    },
+  },
+  {
+    resolvePath: async () => {
+      const id = await getFirstRunId();
+      return id ? `/runs/${id}` : null;
+    },
+    element: '[data-tour="run-summary"]',
+    menu: 'A run · Overview',
+    popover: {
+      title: 'Inside a run',
+      description:
+        'The top of a run shows <b>status</b>, <b>duration</b>, <b>who triggered it</b>, <b>when</b> and the <b>browser</b>. Up top are <b>↻ Re-run</b>, <b>Delete run</b>, and on failures <b>Create bug report</b> (a ready-to-paste Jira ticket). Below sits the full <b>video recording</b> and a downloadable <b>Playwright trace</b> you can replay on trace.playwright.dev.',
+    },
+  },
+  {
+    element: '[data-tour="run-steps"]',
+    menu: 'A run · Step results',
+    popover: {
+      title: 'Step-by-step results',
+      description:
+        'Every step shows whether it <b>passed or failed</b>, its duration, a <b>📷 screenshot</b>, and — if the look changed — a <b>⚠ visual %</b> badge with a 🔍 diff. A failed step prints its error; a step that <b>self-healed</b> (matched a backup selector) is noted too, so you can see exactly where and why a run broke.',
     },
   },
 
@@ -244,9 +296,22 @@ export default function ProductTour() {
   navRef.current = navigate;
 
   // Switch route if needed, then wait for the step's target to render.
+  // `resolvePath` (async) lets a step drill into a real record — e.g. the first
+  // run or test — whose id isn't known ahead of time. If it returns null (no
+  // such record yet) we don't navigate; the popover then centres on screen
+  // (driver.js falls back gracefully when the element selector isn't found).
   const prepareStep = useCallback(async (step) => {
-    if (step?.path && step.path !== window.location.pathname) {
-      navRef.current(step.path);
+    let targetPath = step?.path;
+    if (step?.resolvePath) {
+      try {
+        const p = await step.resolvePath();
+        if (p) targetPath = p;
+      } catch {
+        /* keep static path / let the popover centre */
+      }
+    }
+    if (targetPath && targetPath !== window.location.pathname) {
+      navRef.current(targetPath);
     }
     await waitForEl(step?.element);
   }, []);

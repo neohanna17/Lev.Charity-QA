@@ -160,7 +160,7 @@ export default function TestDetail() {
             onChange={(e) => update({ description: e.target.value })}
           />
         </div>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2" data-tour="test-actions">
           <button onClick={() => handleRun()} disabled={running} className="btn-primary">
             {running ? 'Starting…' : '▶ Run test'}
           </button>
@@ -198,7 +198,7 @@ export default function TestDetail() {
 
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
         {/* Steps */}
-        <section className="lg:col-span-2">
+        <section className="lg:col-span-2" data-tour="test-steps">
           <StepsEditor
             steps={test.steps}
             onChange={(steps) => update({ steps })}

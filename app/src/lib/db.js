@@ -28,6 +28,15 @@ export async function getTest(id) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
+// One-shot "give me an example to show" helpers used by the product tour to
+// drill into a real test editor / run detail. Return null when none exist yet.
+export async function getFirstTestId() {
+  const snap = await getDocs(
+    query(collection(db, 'tests'), orderBy('updatedAt', 'desc'), limit(1)),
+  );
+  return snap.empty ? null : snap.docs[0].id;
+}
+
 export async function createTest(data) {
   const ref = await addDoc(collection(db, 'tests'), {
     name: data.name || 'Untitled test',
@@ -70,6 +79,13 @@ export function watchRunsForTest(testId, cb, max = 25) {
 export function watchRecentRuns(cb, max = 50) {
   const q = query(collection(db, 'runs'), orderBy('startedAt', 'desc'), limit(max));
   return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+}
+
+export async function getFirstRunId() {
+  const snap = await getDocs(
+    query(collection(db, 'runs'), orderBy('startedAt', 'desc'), limit(1)),
+  );
+  return snap.empty ? null : snap.docs[0].id;
 }
 
 export function watchRun(id, cb) {

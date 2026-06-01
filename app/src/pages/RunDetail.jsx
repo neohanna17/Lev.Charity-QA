@@ -93,7 +93,7 @@ export default function RunDetail() {
         </div>
       </div>
 
-      <div className="card flex flex-wrap items-center gap-x-8 gap-y-2 p-5">
+      <div className="card flex flex-wrap items-center gap-x-8 gap-y-2 p-5" data-tour="run-summary">
         <div>
           <div className="label">Status</div>
           <StatusBadge status={run.status} />
@@ -184,7 +184,7 @@ export default function RunDetail() {
       <h2 className="mt-8 mb-2 text-sm font-semibold uppercase tracking-wide text-gray-400">
         Steps
       </h2>
-      <ol className="space-y-2">
+      <ol className="space-y-2" data-tour="run-steps">
         {(run.steps || []).map((s, i) => (
           <li key={s.stepId || i} className="card overflow-hidden">
             <div className="flex items-center gap-3 px-4 py-3">
