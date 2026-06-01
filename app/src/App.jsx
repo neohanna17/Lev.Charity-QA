@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import Spinner from './components/Spinner';
@@ -17,8 +17,36 @@ import TechGuide from './pages/TechGuide';
 import Feedback from './pages/Feedback';
 import QAPlan from './pages/QAPlan';
 
+// A minimal chrome for public, no-login pages (e.g. the shared QA Plan).
+function PublicShell({ children }) {
+  return (
+    <div className="min-h-full bg-ink-800">
+      <header className="border-b border-ink-600 bg-white">
+        <div className="mx-auto flex w-full max-w-6xl items-center gap-2 px-6 py-3">
+          <img src="/logo.png" alt="levcharity" className="h-6 w-auto" />
+          <span className="text-xs font-semibold uppercase tracking-wide text-brand">
+            QA Dashboard
+          </span>
+        </div>
+      </header>
+      <main className="mx-auto w-full max-w-6xl px-6 py-8">{children}</main>
+    </div>
+  );
+}
+
 export default function App() {
   const { user, member, loading } = useAuth();
+  const { pathname } = useLocation();
+
+  // Public share link: a read-only QA Plan that needs no login or membership.
+  // Handled before the auth gate so it renders for anyone with the URL.
+  if (pathname.startsWith('/share/qa-plan')) {
+    return (
+      <PublicShell>
+        <QAPlan readOnly />
+      </PublicShell>
+    );
+  }
 
   if (loading) {
     return (

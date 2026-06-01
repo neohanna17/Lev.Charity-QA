@@ -71,7 +71,7 @@ function ProgressBar({ counts, height = 'h-2.5' }) {
   );
 }
 
-export default function QAPlan() {
+export default function QAPlan({ readOnly = false }) {
   const { user } = useAuth();
   const [statusMap, setStatusMap] = useState({});
   const [selected, setSelected] = useState(null); // module code
@@ -107,14 +107,24 @@ export default function QAPlan() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold">QA Plan</h1>
-            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700">
-              Temporary
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                readOnly ? 'bg-blue-500/15 text-blue-700' : 'bg-amber-500/15 text-amber-700'
+              }`}
+            >
+              {readOnly ? 'Shared · read-only' : 'Temporary'}
             </span>
           </div>
           <p className="text-sm text-gray-500">
-            LevCharity 2.0 manual test plan — {QA_PLAN.length} modules ·{' '}
-            {overall.total} tasks. Mark each as <b>In testing</b>, <b>Failed</b>, or{' '}
-            <b>Passed</b>.
+            LevCharity 2.0 manual test plan — {QA_PLAN.length} modules · {overall.total} tasks.
+            {readOnly
+              ? ' Live progress snapshot — updates appear automatically.'
+              : ' Mark each as '}
+            {!readOnly && (
+              <>
+                <b>In testing</b>, <b>Failed</b>, or <b>Passed</b>.
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -187,6 +197,7 @@ export default function QAPlan() {
           onBack={() => setSelected(null)}
           onMark={mark}
           saving={saving}
+          readOnly={readOnly}
         />
       )}
     </div>
@@ -203,7 +214,7 @@ function Stat({ label, value, sub, tone }) {
   );
 }
 
-function ModuleDetail({ module, counts, statusMap, filter, setFilter, onBack, onMark, saving }) {
+function ModuleDetail({ module, counts, statusMap, filter, setFilter, onBack, onMark, saving, readOnly }) {
   const tasks = module.tasks.filter((t) => {
     if (filter === 'all') return true;
     return (statusMap[t.id]?.status || DEFAULT_STATUS) === filter;
@@ -289,22 +300,35 @@ function ModuleDetail({ module, counts, statusMap, filter, setFilter, onBack, on
                 )}
               </div>
 
-              {/* Status control */}
-              <div className="flex shrink-0 gap-1 rounded-lg border border-ink-600 bg-gray-50 p-1">
-                {STATUSES.map((s) => (
-                  <button
-                    key={s.value}
-                    onClick={() => onMark(t.id, s.value)}
-                    disabled={saving === t.id}
-                    className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
-                      status === s.value ? s.active : 'text-gray-500 hover:bg-white'
+              {/* Status: read-only badge for shared view, buttons otherwise */}
+              {readOnly ? (
+                <div className="shrink-0">
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+                      STATUS_BY[status]?.chip || ''
                     }`}
-                    title={`Mark as ${s.label}`}
                   >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
+                    <span className={`h-2 w-2 rounded-full ${STATUS_BY[status]?.dot || ''}`} />
+                    {STATUS_BY[status]?.label}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex shrink-0 gap-1 rounded-lg border border-ink-600 bg-gray-50 p-1">
+                  {STATUSES.map((s) => (
+                    <button
+                      key={s.value}
+                      onClick={() => onMark(t.id, s.value)}
+                      disabled={saving === t.id}
+                      className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+                        status === s.value ? s.active : 'text-gray-500 hover:bg-white'
+                      }`}
+                      title={`Mark as ${s.label}`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}
