@@ -80,13 +80,17 @@ export async function handler(event) {
   const category = clip(body.category, 60) || 'Feature request';
   const details = clip(body.details, 1500);
   const who = clip(body.authorName || body.authorEmail || 'Someone', 200);
+  const mention = (process.env.DISCORD_FEEDBACK_MENTION || '').trim();
 
   const fields = [{ name: 'Type', value: category, inline: true }, { name: 'From', value: who, inline: true }];
   if (body.url) fields.push({ name: 'Open', value: clip(body.url, 400), inline: false });
 
   const payload = {
     username: 'Lev.Charity QA',
-    content: '📋 **New feature feedback**',
+    // Optional mention so a real Discord ping fires. Set DISCORD_FEEDBACK_MENTION
+    // to "<@USER_ID>" (or "<@&ROLE_ID>"). allowed_mentions lets it resolve.
+    content: `${mention ? mention + ' ' : ''}📋 **New feature feedback**`,
+    allowed_mentions: { parse: ['users', 'roles'] },
     embeds: [
       {
         title,
