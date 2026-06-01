@@ -55,11 +55,12 @@ export default function Feedback() {
   const filtered = useMemo(() => {
     if (!items) return [];
     if (filter === 'all') return items;
-    if (filter === 'open') return items.filter((i) => i.status !== 'done');
+    // "Open" = still needs triage: new only (planned + done are excluded).
+    if (filter === 'open') return items.filter((i) => i.status === 'new');
     return items.filter((i) => i.status === filter);
   }, [items, filter]);
 
-  const openCount = (items || []).filter((i) => i.status !== 'done').length;
+  const openCount = (items || []).filter((i) => i.status === 'new').length;
 
   return (
     <div>
