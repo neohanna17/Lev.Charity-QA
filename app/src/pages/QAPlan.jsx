@@ -47,21 +47,6 @@ const PRIORITY_CLASS = {
 
 const pct = (n, total) => (total ? Math.round((n / total) * 100) : 0);
 
-// Plan titles come from the PDF in ALL CAPS. Show them as normal sentence
-// case (capital first letter only), keeping a few acronyms uppercase.
-const ACRONYMS = new Set(['CRM', 'RBAC', 'API', 'UAT', 'DAF', 'LTR', 'RTL', 'UI', 'UX', 'QA']);
-function sentenceCase(str) {
-  const words = (str || '')
-    .toLowerCase()
-    .split(' ')
-    .map((w) => {
-      const up = w.replace(/[^a-z]/gi, '').toUpperCase();
-      return ACRONYMS.has(up) ? w.toUpperCase() : w;
-    });
-  const out = words.join(' ');
-  return out.charAt(0).toUpperCase() + out.slice(1);
-}
-
 function tally(tasks, statusMap) {
   const c = { in_testing: 0, bugs_found: 0, passed: 0, total: tasks.length };
   for (const t of tasks) {
@@ -173,7 +158,7 @@ export default function QAPlan() {
                     {m.code}
                   </span>
                   <span className="flex-1 text-sm font-medium text-gray-500 group-hover:text-gray-800">
-                    {sentenceCase(m.title)}
+                    {m.title}
                   </span>
                 </div>
                 {/* Card body */}
@@ -242,7 +227,7 @@ function ModuleDetail({ module, counts, statusMap, filter, setFilter, onBack, on
           <span className="rounded-md bg-brand/10 px-1.5 py-0.5 text-sm font-bold text-brand">
             {module.code}
           </span>
-          <h2 className="flex-1 text-lg font-semibold text-gray-700">{sentenceCase(module.title)}</h2>
+          <h2 className="flex-1 text-lg font-semibold text-gray-700">{module.title}</h2>
         </div>
         <div className="mt-3">
           <ProgressBar counts={counts} height="h-3" />
