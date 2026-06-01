@@ -14,6 +14,7 @@ const navItems = [
   { to: '/guide', label: 'Guide', tour: 'nav-guide' },
   { to: '/tech', label: 'Tech guide', tour: 'nav-tech' },
   { to: '/feedback', label: 'Feature feedback', tour: 'nav-feedback' },
+  { to: '/qa-plan', label: 'QA Plan', tour: 'nav-qa-plan', temporary: true },
 ];
 
 export default function Layout({ children }) {
@@ -53,14 +54,19 @@ export default function Layout({ children }) {
               end={n.end}
               data-tour={n.tour}
               className={({ isActive }) =>
-                `rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                `flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                   isActive
                     ? 'bg-brand/10 text-brand'
                     : 'text-gray-500 hover:bg-ink-700 hover:text-gray-800'
                 }`
               }
             >
-              {n.label}
+              <span>{n.label}</span>
+              {n.temporary && (
+                <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                  temp
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>

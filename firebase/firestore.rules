@@ -53,6 +53,12 @@ service cloud.firestore {
       allow read, create, update, delete: if isMember();
     }
 
+    // QA Plan task statuses = one doc per plan task (in testing / bugs found /
+    // passed). Shared across the team; any member can read and update.
+    match /qaStatus/{taskId} {
+      allow read, create, update, delete: if isMember();
+    }
+
     // Presence = "who's online" heartbeats. Anyone signed in as a member can
     // see who else is active, but you may only write/clear your own doc.
     match /presence/{uid} {

@@ -315,4 +315,33 @@ export function watchPresence(cb) {
   );
 }
 
+// ---- QA Plan task statuses ----
+// The plan content (modules + tasks) is static (see qaPlan.js). Only each
+// task's status is dynamic and shared across the team, stored one doc per
+// task in `qaStatus/{taskId}`. Tasks with no doc default to "in testing".
+
+export function watchQaStatus(cb) {
+  return onSnapshot(
+    collection(db, 'qaStatus'),
+    (snap) => {
+      const map = {};
+      snap.docs.forEach((d) => (map[d.id] = d.data()));
+      cb(map);
+    },
+    () => cb({}), // degrade gracefully if rules aren't published yet
+  );
+}
+
+export function setQaStatus(taskId, status, user) {
+  return setDoc(
+    doc(db, 'qaStatus', taskId),
+    {
+      status,
+      updatedAt: serverTimestamp(),
+      updatedBy: user?.displayName || user?.email || null,
+    },
+    { merge: true },
+  );
+}
+
 export { doc, setDoc };
