@@ -43,6 +43,8 @@ import {
   buildCron,
   describeSchedule,
   localTzLabel,
+  nextRuns,
+  formatNextRun,
 } from '../lib/schedule';
 
 // Older suites stored a single setupComponentId; new ones store ordered arrays.
@@ -527,8 +529,12 @@ function SchedulePicker({ suite }) {
       : [{ value: local, label: `Your computer — ${local}` }, ...TIMEZONES];
   }, []);
 
+  // Concrete upcoming fire times, recomputed whenever the spec changes.
+  const upcoming = useMemo(() => nextRuns(spec, 3), [spec]);
+
   return (
     <div className="rounded-lg border border-ink-600 bg-white p-3" data-tour="suite-schedule">
+      <div className="label mb-2">Schedule</div>
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <label className="label">Run automatically</label>
@@ -606,10 +612,35 @@ function SchedulePicker({ suite }) {
         )}
       </div>
 
-      <p className="mt-2 text-xs text-gray-500">
-        {describeSchedule(spec)}
-        {spec.freq !== 'manual' && ' · scheduled runs fire within the hour.'}
-      </p>
+      {spec.freq === 'manual' ? (
+        <p className="mt-3 text-xs text-gray-500">
+          {describeSchedule(spec)}. Pick a frequency above to run this suite automatically.
+        </p>
+      ) : (
+        <div className="mt-3 rounded-md border border-ink-600 bg-gray-50 px-3 py-2">
+          <p className="text-xs font-medium text-gray-700">{describeSchedule(spec)}</p>
+          {upcoming.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+              <span className="font-medium text-gray-600">Next runs:</span>
+              {upcoming.map((d, i) => (
+                <span
+                  key={i}
+                  className={`rounded-full px-2 py-0.5 ${
+                    i === 0 ? 'bg-brand/10 font-medium text-brand' : 'bg-white text-gray-500'
+                  }`}
+                  title={d.toString()}
+                >
+                  {formatNextRun(d, spec.tz)}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="mt-1.5 text-[11px] text-gray-400">
+            Times shown in {(spec.tz || 'UTC').replace('_', ' ')} · scheduled runs fire within the
+            hour of the listed time.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

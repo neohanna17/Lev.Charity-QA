@@ -82,3 +82,105 @@ export const localTzLabel = () => {
     return 'your local time';
   }
 };
+
+// ----- Concrete "next run" preview ---------------------------------------
+// The schedule is a wall-clock time in the suite's timezone, so to show the
+// user real upcoming dates we have to do a little timezone math.
+
+// Break a Date into its wall-clock parts *in a given timezone*.
+function tzParts(date, tz) {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hourCycle: 'h23',
+    weekday: 'short',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  const p = Object.fromEntries(dtf.formatToParts(date).map((x) => [x.type, x.value]));
+  const wd = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    y: +p.year,
+    mo: +p.month - 1,
+    d: +p.day,
+    weekday: wd[p.weekday],
+    hour: +p.hour,
+    minute: +p.minute,
+  };
+}
+
+// The signed offset (ms) of a timezone at a given instant.
+function tzOffset(date, tz) {
+  const t = tzParts(date, tz);
+  const asUTC = Date.UTC(t.y, t.mo, t.d, t.hour, t.minute, 0);
+  return asUTC - Math.floor(date.getTime() / 60000) * 60000;
+}
+
+// The absolute Date for a wall-clock time (Y-M-D H:M) in a timezone.
+function zonedToDate(y, mo, d, h, mi, tz) {
+  const guess = Date.UTC(y, mo, d, h, mi, 0);
+  // One correction pass is enough except exactly on a DST transition.
+  return new Date(guess - tzOffset(new Date(guess), tz));
+}
+
+// The next `count` times this schedule will fire, as absolute Dates.
+export function nextRuns(spec, count = 3) {
+  const s = { ...defaultSpec(), ...(spec || {}) };
+  if (s.freq === 'manual') return [];
+  const now = Date.now();
+  const out = [];
+
+  if (s.freq === 'hourly') {
+    const d = new Date(now);
+    d.setMinutes(0, 0, 0);
+    d.setHours(d.getHours() + 1);
+    for (let i = 0; i < count; i++) out.push(new Date(d.getTime() + i * 3600000));
+    return out;
+  }
+
+  if (s.freq === 'everyN') {
+    const n = Math.min(23, Math.max(1, Number(s.everyHours) || 4));
+    const d = new Date(now);
+    d.setMinutes(0, 0, 0);
+    while (out.length < count) {
+      d.setHours(d.getHours() + 1);
+      if (d.getHours() % n === 0 && d.getTime() > now) out.push(new Date(d));
+    }
+    return out;
+  }
+
+  const [h, mi] = String(s.time || '08:00').split(':').map((x) => Number(x) || 0);
+  const tz = s.tz || 'UTC';
+  let cursor = new Date(now);
+  for (let i = 0; i < 370 && out.length < count; i++) {
+    const tp = tzParts(cursor, tz);
+    let dayOk = true;
+    if (s.freq === 'weekdays') dayOk = tp.weekday >= 1 && tp.weekday <= 5;
+    if (s.freq === 'weekly') dayOk = tp.weekday === Number(s.weekday);
+    if (dayOk) {
+      const cand = zonedToDate(tp.y, tp.mo, tp.d, h, mi, tz);
+      if (cand.getTime() > now) out.push(cand);
+    }
+    cursor = new Date(cursor.getTime() + 86400000);
+  }
+  return out;
+}
+
+// Format a "next run" Date in the suite's timezone, e.g. "Mon 2 Jun, 08:00".
+export function formatNextRun(date, tz) {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      timeZone: tz || 'UTC',
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+  } catch {
+    return date.toLocaleString();
+  }
+}

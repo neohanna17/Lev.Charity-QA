@@ -346,8 +346,13 @@ function CheckBox({ checked, indeterminate, onChange, title }) {
 function RunRow({ run, moduleByTest, selected, toggleOne, navigate, nested = false }) {
   const go = () => navigate(`/runs/${run.id}`);
   return (
-    <tr className="cursor-pointer border-b border-ink-600 last:border-0 hover:bg-ink-700/40" onClick={go}>
-      <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+    <tr
+      className={`cursor-pointer border-b border-ink-600 last:border-0 hover:bg-ink-700/40 ${
+        nested ? 'bg-brand/[0.02]' : ''
+      }`}
+      onClick={go}
+    >
+      <td className={`px-3 py-2.5 ${nested ? 'border-l-2 border-brand/30' : ''}`} onClick={(e) => e.stopPropagation()}>
         <CheckBox checked={selected.has(run.id)} onChange={() => toggleOne(run.id)} title="Select run" />
       </td>
       <td className="px-2 py-2.5">
@@ -355,7 +360,7 @@ function RunRow({ run, moduleByTest, selected, toggleOne, navigate, nested = fal
       </td>
       <th scope="row" className="max-w-0 px-2 py-2.5 text-left font-medium">
         <span className="block truncate">
-          {nested && <span className="mr-1 text-gray-300">↳</span>}
+          {nested && <span className="mr-1.5 text-brand/40">↳</span>}
           {run.testName}
         </span>
       </th>
@@ -380,13 +385,23 @@ function SuiteRows({ entry, moduleByTest, selected, toggleOne, toggleIds, naviga
   const st = suiteStatus(entry.runs);
   const passed = entry.runs.filter((r) => r.status === 'passed').length;
   const total = entry.runs.length;
+  const failed = entry.runs.filter((r) => isFail(r.status)).length;
+  const totalMs = entry.runs.reduce((sum, r) => sum + (r.durationMs || 0), 0);
   const ids = entry.runs.map((r) => r.id);
   const allSel = ids.every((id) => selected.has(id));
   const someSel = ids.some((id) => selected.has(id));
+  const toggleOpen = () => setOpen((o) => !o);
+
+  const pillClass =
+    st === 'passed'
+      ? 'bg-green-500/15 text-green-700'
+      : st === 'running'
+        ? 'bg-blue-500/15 text-blue-700'
+        : 'bg-red-500/15 text-red-700';
 
   return (
     <>
-      <tr className="border-b border-ink-600 bg-brand/[0.03] hover:bg-brand/[0.06]">
+      <tr className="border-b border-ink-600 bg-brand/[0.05] hover:bg-brand/[0.09]">
         <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
           <CheckBox
             checked={allSel}
@@ -395,32 +410,31 @@ function SuiteRows({ entry, moduleByTest, selected, toggleOne, toggleIds, naviga
             title="Select all tests in this suite run"
           />
         </td>
-        <td className="px-2 py-2.5 cursor-pointer" onClick={() => setOpen((o) => !o)}>
+        <td className="px-2 py-2.5 cursor-pointer" onClick={toggleOpen}>
           <StatusBadge status={st} />
         </td>
-        <th scope="row" className="max-w-0 px-2 py-2.5 text-left cursor-pointer" onClick={() => setOpen((o) => !o)}>
+        {/* Name cell truncates cleanly — the pass/fail pill lives in its own
+            column so nothing overlaps. */}
+        <th scope="row" className="max-w-0 px-2 py-2.5 text-left cursor-pointer" onClick={toggleOpen}>
           <span className="flex items-center gap-1.5">
-            <span className={`text-gray-300 transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
-            <span className="text-brand">◆</span>
-            <span className="truncate font-semibold">
-              {hideName ? `Suite run · ${total} test${total === 1 ? '' : 's'}` : entry.suiteName}
-            </span>
-            <span
-              className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-                st === 'passed'
-                  ? 'bg-green-500/15 text-green-700'
-                  : st === 'running'
-                    ? 'bg-blue-500/15 text-blue-700'
-                    : 'bg-red-500/15 text-red-700'
-              }`}
-            >
-              {passed}/{total} passed
+            <span className={`shrink-0 text-brand/60 transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
+            <span className="shrink-0 text-brand">◆</span>
+            <span className="truncate font-semibold text-gray-800">
+              {hideName ? 'Suite run' : entry.suiteName}
             </span>
           </span>
         </th>
-        <td className="hidden px-2 py-2.5 text-xs text-brand sm:table-cell">Suite</td>
-        <td className="hidden px-2 py-2.5 lg:table-cell" />
-        <td className="hidden sm:table-cell" />
+        <td className="hidden px-2 py-2.5 sm:table-cell">
+          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${pillClass}`}>
+            {passed}/{total} passed{failed ? ` · ${failed} failed` : ''}
+          </span>
+        </td>
+        <td className="hidden px-2 py-2.5 text-xs text-gray-400 lg:table-cell">
+          Suite · {total} test{total === 1 ? '' : 's'}
+        </td>
+        <td className="hidden px-2 py-2.5 text-right text-xs text-gray-500 sm:table-cell">
+          {fmtDuration(totalMs)}
+        </td>
         <td className="px-2 py-2.5 text-right text-xs text-gray-500">{timeAgo(entry.sortTs)}</td>
       </tr>
       {open &&
