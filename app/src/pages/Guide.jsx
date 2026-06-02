@@ -340,7 +340,7 @@ const SECTIONS = [
   {
     id: 'cross-browser',
     title: '8 · Cross-browser &amp; mobile testing',
-    summary: 'Run the same test on Chrome, Safari, iPhone and Pixel at once.',
+    summary: 'Run the same test on Chrome, Safari, iPhone and Android at once.',
     body: (
       <>
         <p>
@@ -363,8 +363,8 @@ const SECTIONS = [
             identity (runs on the Safari engine).
           </li>
           <li>
-            <strong>📱 Pixel</strong> — an Android phone screen with touch (runs on the
-            Chrome engine).
+            <strong>🤖 Android</strong> — a Samsung Galaxy phone screen with touch, i.e.
+            Chrome on Android (runs on the Chrome engine).
           </li>
         </ul>
         <p>
@@ -382,7 +382,7 @@ const SECTIONS = [
         <p className="tip">
           <strong>Two things to know.</strong> Mobile here is realistic{' '}
           <em>emulation</em> — the right screen size, touch and identity — not a physical
-          iPhone or Pixel (real-device clouds need paid infrastructure). And the first time a
+          iPhone or Android (real-device clouds need paid infrastructure). And the first time a
           test runs on a <em>new</em> browser, its visual baseline is created fresh for that
           browser (each browser keeps its own baselines, since pages legitimately look a
           little different across them).
@@ -411,7 +411,7 @@ const SECTIONS = [
           </li>
           <li>
             <strong>Ran on</strong> — which browser/device the run used (Chrome, Safari,
-            iPhone or Pixel).
+            iPhone or Android).
           </li>
           <li>
             <strong>Recording</strong> — a full video of the browser session.

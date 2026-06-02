@@ -19,7 +19,10 @@ const TARGETS = {
   chromium: { engine: 'chromium' },
   webkit: { engine: 'webkit' },
   iphone: { engine: 'webkit', device: 'iPhone 13' },
-  pixel: { engine: 'chromium', device: 'Pixel 5' },
+  android: { engine: 'chromium', device: 'Galaxy S24' },
+  // Back-compat: older runs were recorded with target 'pixel'. Keep the alias
+  // so re-runs and historical run docs still resolve to an Android emulation.
+  pixel: { engine: 'chromium', device: 'Galaxy S24' },
 };
 
 function resolveTarget(id) {
