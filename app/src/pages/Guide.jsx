@@ -316,8 +316,9 @@ const SECTIONS = [
       <>
         <p>
           From a test, press <strong>Run</strong>. A run is queued, the GitHub Actions
-          runner picks it up, drives a real Chrome browser through your steps, and reports
-          back here live.
+          runner picks it up, drives a real browser through your steps, and reports back here
+          live. By default it uses Chrome — to run on Safari or a phone too, see{' '}
+          <em>Cross-browser &amp; mobile testing</em> below.
         </p>
         <p>You don’t always have to run the whole test:</p>
         <ul>
@@ -337,8 +338,66 @@ const SECTIONS = [
     ),
   },
   {
+    id: 'cross-browser',
+    title: '8 · Cross-browser &amp; mobile testing',
+    summary: 'Run the same test on Chrome, Safari, iPhone and Pixel at once.',
+    body: (
+      <>
+        <p>
+          A test doesn’t have to run only in Chrome. Above the <strong>Run</strong> button
+          (and on every suite) there’s a <strong>“Run on”</strong> row of toggles. Tick the
+          browsers and devices you want, then run — the test fans out into{' '}
+          <strong>one run per target</strong>, all kicked off from a single click.
+        </p>
+        <p>There are four targets:</p>
+        <ul>
+          <li>
+            <strong>🖥 Chrome</strong> — desktop Chrome (the default; what runs if you change
+            nothing).
+          </li>
+          <li>
+            <strong>🧭 Safari</strong> — the engine behind Safari (WebKit), on desktop.
+          </li>
+          <li>
+            <strong>📱 iPhone</strong> — a phone-sized screen with touch and an iPhone
+            identity (runs on the Safari engine).
+          </li>
+          <li>
+            <strong>📱 Pixel</strong> — an Android phone screen with touch (runs on the
+            Chrome engine).
+          </li>
+        </ul>
+        <p>
+          Each run is tagged with a small browser/device <strong>chip</strong> so you can
+          tell them apart — you’ll see it on the <Link to="/runs">Runs</Link> list, on the
+          run detail page (“Ran on”), and in a test’s run history. <strong>↻ Re-run</strong>{' '}
+          repeats a run on the same target it used before.
+        </p>
+        <p>
+          To run a whole <Link to="/suites">Suite</Link> across browsers, use the same “Run
+          on” toggles on the suite card before pressing <strong>Run suite</strong>. Every
+          test runs on every browser you pick (so 4 tests × 2 browsers = 8 runs), all rolled
+          up under one suite result.
+        </p>
+        <p className="tip">
+          <strong>Two things to know.</strong> Mobile here is realistic{' '}
+          <em>emulation</em> — the right screen size, touch and identity — not a physical
+          iPhone or Pixel (real-device clouds need paid infrastructure). And the first time a
+          test runs on a <em>new</em> browser, its visual baseline is created fresh for that
+          browser (each browser keeps its own baselines, since pages legitimately look a
+          little different across them).
+        </p>
+        <p>
+          Scheduled and daily-sweep runs stay on Chrome to keep them fast and predictable —
+          reach for the other browsers when you want to deliberately check cross-browser or
+          mobile behaviour.
+        </p>
+      </>
+    ),
+  },
+  {
     id: 'results',
-    title: '8 · Read the results',
+    title: '9 · Read the results',
     summary: 'Video, trace, screenshots and self-heal notes.',
     body: (
       <>
@@ -349,6 +408,10 @@ const SECTIONS = [
         <ul>
           <li>
             <strong>Status &amp; duration</strong> — pass, fail, error, or still running.
+          </li>
+          <li>
+            <strong>Ran on</strong> — which browser/device the run used (Chrome, Safari,
+            iPhone or Pixel).
           </li>
           <li>
             <strong>Recording</strong> — a full video of the browser session.
@@ -376,7 +439,7 @@ const SECTIONS = [
   },
   {
     id: 'suites',
-    title: '9 · Suites &amp; scheduling',
+    title: '10 · Suites &amp; scheduling',
     summary: 'Group tests and run them automatically.',
     body: (
       <>
@@ -385,7 +448,11 @@ const SECTIONS = [
           <Link to="/suites">Suites</Link> page you can:
         </p>
         <ul>
-          <li>Run the whole suite on demand.</li>
+          <li>
+            Run the whole suite on demand — and, with the <strong>“Run on”</strong> toggles,
+            across several browsers/devices at once (see <em>Cross-browser &amp; mobile
+            testing</em> above).
+          </li>
           <li>
             Put it on a <strong>schedule</strong> (e.g. hourly, or part of the daily sweep)
             so it runs on its own.
@@ -447,7 +514,7 @@ const SECTIONS = [
   },
   {
     id: 'reports',
-    title: '10 · Reports',
+    title: '11 · Reports',
     summary: 'Pass rates, flaky tests and trends.',
     body: (
       <>
@@ -463,7 +530,7 @@ const SECTIONS = [
   },
   {
     id: 'bugs',
-    title: '11 · File a Jira-ready bug',
+    title: '12 · File a Jira-ready bug',
     summary: 'Turn a failure into a ticket in two clicks.',
     body: (
       <>
