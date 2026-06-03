@@ -6,6 +6,7 @@ export const STEP_TYPES = {
   navigate: { label: 'Navigate to URL', needs: ['value'] },
   click: { label: 'Click', needs: ['target'] },
   type: { label: 'Type text', needs: ['target', 'value'] },
+  clear: { label: 'Clear field', needs: ['target'] },
   press: { label: 'Press key', needs: ['value'] },
   select: { label: 'Select option', needs: ['target', 'value'] },
   hover: { label: 'Hover', needs: ['target'] },

@@ -21,6 +21,7 @@ function stepLabel(step) {
     case 'navigate': return `Go to ${step.value}`;
     case 'click': return `Click ${t}`;
     case 'type': return `Type "${step.value}" into ${t}`;
+    case 'clear': return `Clear ${t}`;
     case 'press': return `Press ${step.value}`;
     case 'select': return `Select "${step.value}" in ${t}`;
     case 'hover': return `Hover ${t}`;
@@ -97,6 +98,7 @@ async function execStep(page, step, result) {
       if (index > 0) result.healedWith = selector;
       if (step.type === 'click') await locator.click({ timeout: DEFAULT_TIMEOUT });
       else if (step.type === 'type') await locator.fill(injectSecrets(step.value ?? ''), { timeout: DEFAULT_TIMEOUT });
+      else if (step.type === 'clear') await locator.fill('', { timeout: DEFAULT_TIMEOUT });
       else if (step.type === 'select') await locator.selectOption(injectSecrets(step.value), { timeout: DEFAULT_TIMEOUT });
       else if (step.type === 'hover') await locator.hover({ timeout: DEFAULT_TIMEOUT });
       else if (step.type === 'assertVisible') {

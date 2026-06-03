@@ -279,7 +279,7 @@ function StepEditor({ step, onChange, components, allowComponents }) {
           />
         </div>
       )}
-      {['click', 'type', 'select', 'hover', 'assertVisible'].includes(step.type) && (
+      {['click', 'type', 'select', 'hover', 'assertVisible', 'clear'].includes(step.type) && (
         <>
           <div>
             <label className="label">Target label</label>
