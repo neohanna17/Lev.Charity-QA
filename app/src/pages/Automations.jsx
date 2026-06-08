@@ -209,6 +209,38 @@ export default function Automations() {
     }
   }
 
+  // Capture a fresh visual baseline for every check at once (enqueue all, one
+  // drain dispatch — same pattern as Run all). After this, runs only flag real
+  // differences from these baselines.
+  async function setAllBaselines() {
+    const runnable = autoTests.filter((t) => (t.steps?.length || 0) > 0);
+    if (runnable.length === 0) return;
+    if (
+      !confirm(
+        `Capture a fresh visual baseline for all ${runnable.length} checks? This becomes the “known-good” reference future runs compare against.`,
+      )
+    )
+      return;
+    setBusy(true);
+    setNote('');
+    try {
+      const who = user?.email || 'dashboard';
+      const [first, ...rest] = runnable;
+      for (let i = 0; i < rest.length; i += 1) {
+        await enqueueRun(rest[i], who, { automation: true, updateBaselines: true });
+        setNote(`Queuing baselines ${i + 1}/${runnable.length}…`);
+      }
+      await triggerRun(first, { automation: true, updateBaselines: true });
+      setNote(
+        `✓ Capturing fresh baselines for ${runnable.length} checks. Once done, runs flag only real changes — with a clear before/after.`,
+      );
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // One-click "the change is fine": recapture this check's visual baseline so it
   // stops being flagged. Quick run, no extra setup.
   async function rebaseline(test) {
@@ -261,6 +293,16 @@ export default function Automations() {
           {missing.length > 0 && (
             <button onClick={generate} disabled={busy} className="btn-primary">
               {busy ? 'Working…' : `Generate ${missing.length} test${missing.length === 1 ? '' : 's'}`}
+            </button>
+          )}
+          {autoTests.length > 0 && (
+            <button
+              onClick={setAllBaselines}
+              disabled={busy}
+              className="btn-ghost"
+              title="Capture a fresh visual baseline for every check (the reference future runs compare against)"
+            >
+              Set baselines
             </button>
           )}
           {autoTests.length > 0 && (
