@@ -54,6 +54,43 @@ function buildSteps(spec, login) {
   return steps;
 }
 
+// Resolve a single check's health from its test + most recent automation run.
+//   not_generated → no test created yet
+//   needs_steps   → test exists but has no steps (can't run)
+//   running       → queued or in progress
+//   failed        → last run failed/errored
+//   changed       → last run passed but a step differs from its visual baseline
+//   passed        → last run all green
+//   never         → generated, has steps, but never run
+function checkStatus(test, last) {
+  if (!test) return 'not_generated';
+  if ((test.steps?.length || 0) === 0) return 'needs_steps';
+  if (!last) return 'never';
+  if (last.status === 'queued' || last.status === 'running') return 'running';
+  if (last.status === 'failed' || last.status === 'error') return 'failed';
+  const changed = (last.steps || []).some((s) => s?.visual?.status === 'changed');
+  return changed ? 'changed' : 'passed';
+}
+
+// Health buckets for the mini dashboard, in display order.
+const HEALTH = [
+  { key: 'passed', label: 'Healthy', tone: 'text-green-600', seg: 'bg-green-500' },
+  { key: 'changed', label: 'Changed', tone: 'text-amber-600', seg: 'bg-amber-500' },
+  { key: 'failed', label: 'Failing', tone: 'text-red-600', seg: 'bg-red-500' },
+  { key: 'notReady', label: "Can't run", tone: 'text-slate-500', seg: 'bg-slate-400' },
+  { key: 'pending', label: 'Not run yet', tone: 'text-gray-500', seg: 'bg-gray-300' },
+];
+// Map a raw status to its dashboard bucket.
+const BUCKET = {
+  passed: 'passed',
+  changed: 'changed',
+  failed: 'failed',
+  needs_steps: 'notReady',
+  not_generated: 'notReady',
+  never: 'pending',
+  running: 'pending',
+};
+
 export default function Automations() {
   const { user } = useAuth();
   const [tests, setTests] = useState(null);
@@ -79,6 +116,8 @@ export default function Automations() {
   );
 
   const autoTests = useMemo(() => (tests || []).filter((t) => t.automation), [tests]);
+  // watchRecentRuns returns newest-first, so [0] is the latest automation run.
+  const autoRuns = useMemo(() => runs.filter((r) => r.automation), [runs]);
   const testBySlug = useMemo(() => {
     const m = {};
     for (const t of autoTests) if (t.tutorialSlug) m[t.tutorialSlug] = t;
@@ -88,6 +127,27 @@ export default function Automations() {
 
   const generated = SPECS.filter((s) => testBySlug[s.slug]);
   const missing = SPECS.filter((s) => !testBySlug[s.slug]);
+
+  // Per-check status + the mini-dashboard rollup.
+  const checks = useMemo(
+    () =>
+      SPECS.map((spec) => {
+        const test = testBySlug[spec.slug];
+        const last = test && lastRunFor(test.id);
+        const status = checkStatus(test, last);
+        return { spec, test, last, status, bucket: BUCKET[status] };
+      }),
+    [tests, runs],
+  );
+  const counts = useMemo(() => {
+    const c = { passed: 0, changed: 0, failed: 0, notReady: 0, pending: 0 };
+    for (const ch of checks) c[ch.bucket] += 1;
+    return c;
+  }, [checks]);
+  // Things the user should act on: failing, or can't run (no steps / not made).
+  const attention = checks.filter((ch) => ['failed', 'needs_steps', 'not_generated'].includes(ch.status));
+  const lastSweep = autoRuns[0];
+  const healthPct = generated.length ? Math.round((counts.passed / SPECS.length) * 100) : 0;
 
   async function generate() {
     if (!login) {
@@ -164,8 +224,6 @@ export default function Automations() {
 
   if (!tests) return <Spinner label="Loading automations…" />;
 
-  const autoRuns = runs.filter((r) => r.automation);
-
   return (
     <div>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -214,6 +272,37 @@ export default function Automations() {
         </div>
       )}
 
+      {/* Mini health dashboard */}
+      <HealthSummary counts={counts} total={SPECS.length} healthPct={healthPct} lastSweep={lastSweep} />
+
+      {attention.length > 0 && (
+        <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm">
+          <div className="mb-1.5 font-medium text-red-700">
+            {attention.length} check{attention.length === 1 ? '' : 's'} need attention
+          </div>
+          <ul className="space-y-1">
+            {attention.map((ch) => (
+              <li key={ch.spec.slug} className="flex items-center justify-between gap-2">
+                <span className="min-w-0 flex-1 truncate text-gray-700">
+                  <span className="text-gray-400">
+                    {ch.status === 'failed' ? '✗ failing' : ch.status === 'needs_steps' ? '⚠ no steps' : '＋ not generated'}
+                    {' · '}
+                  </span>
+                  {ch.spec.title}
+                </span>
+                {ch.test ? (
+                  <Link to={`/tests/${ch.test.id}`} className="shrink-0 text-xs text-brand hover:underline">
+                    {ch.status === 'failed' ? 'View' : 'Fix'}
+                  </Link>
+                ) : (
+                  <span className="shrink-0 text-xs text-gray-400">Generate ↑</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Schedule explainer */}
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <Info title="When they run" body="Every morning at 05:30 UTC (~07:30 SAST / 08:30 IDT) via GitHub Actions — plus any time you press “Run all now”." />
@@ -226,47 +315,53 @@ export default function Automations() {
         Checks ({generated.length}/{SPECS.length})
       </h2>
       <div className="card divide-y divide-ink-600">
-        {SPECS.map((spec) => {
-          const test = testBySlug[spec.slug];
-          const last = test && lastRunFor(test.id);
-          return (
-            <div key={spec.slug} className="flex flex-wrap items-center gap-3 px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  {spec.hub && <span title="Tutorial monitor">📣</span>}
-                  <span className="truncate text-sm font-medium text-gray-800">{spec.title}</span>
-                  {!test && (
-                    <span className="rounded-full bg-ink-700 px-2 py-0.5 text-xs text-gray-500">
-                      not generated
-                    </span>
-                  )}
-                </div>
-                <div className="mt-0.5 text-xs text-gray-500">
-                  {spec.links.length} page{spec.links.length === 1 ? '' : 's'}
-                  {last && (
-                    <>
-                      {' · '}
-                      {timeAgo(last.startedAt)} · {fmtDuration(last.durationMs)}
-                    </>
-                  )}
-                </div>
+        {checks.map(({ spec, test, last, status }) => (
+          <div key={spec.slug} className="flex flex-wrap items-center gap-3 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                {spec.hub && <span title="Tutorial monitor">📣</span>}
+                <span className="truncate text-sm font-medium text-gray-800">{spec.title}</span>
+                {status === 'not_generated' && (
+                  <span className="rounded-full bg-ink-700 px-2 py-0.5 text-xs text-gray-500">
+                    not generated
+                  </span>
+                )}
+                {status === 'needs_steps' && (
+                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-700">
+                    no steps
+                  </span>
+                )}
+                {status === 'changed' && (
+                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-700" title="A page differs from its visual baseline">
+                    ⚠ changed
+                  </span>
+                )}
               </div>
-              {last && <StatusBadge status={last.status} />}
-              {test ? (
-                <div className="flex shrink-0 gap-1">
-                  <button onClick={() => runOne(test)} disabled={busy} className="btn-ghost py-1 px-2.5 text-xs">
-                    ▶ Run
-                  </button>
-                  <Link to={`/tests/${test.id}`} className="btn-ghost py-1 px-2.5 text-xs">
-                    Open
-                  </Link>
-                </div>
-              ) : (
-                <span className="shrink-0 text-xs text-gray-400">—</span>
-              )}
+              <div className="mt-0.5 text-xs text-gray-500">
+                {spec.links.length} page{spec.links.length === 1 ? '' : 's'}
+                {last && (
+                  <>
+                    {' · '}
+                    {timeAgo(last.startedAt)} · {fmtDuration(last.durationMs)}
+                  </>
+                )}
+              </div>
             </div>
-          );
-        })}
+            {last && <StatusBadge status={last.status} />}
+            {test ? (
+              <div className="flex shrink-0 gap-1">
+                <button onClick={() => runOne(test)} disabled={busy} className="btn-ghost py-1 px-2.5 text-xs">
+                  ▶ Run
+                </button>
+                <Link to={`/tests/${test.id}`} className="btn-ghost py-1 px-2.5 text-xs">
+                  Open
+                </Link>
+              </div>
+            ) : (
+              <span className="shrink-0 text-xs text-gray-400">—</span>
+            )}
+          </div>
+        ))}
       </div>
 
       {/* Recent automation runs */}
@@ -292,6 +387,35 @@ export default function Automations() {
               {timeAgo(r.startedAt)} · {fmtDuration(r.durationMs)}
             </span>
           </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Mini dashboard: a stacked health bar + one tile per bucket, so failing or
+// can't-run checks are obvious the moment you open the tab.
+function HealthSummary({ counts, total, healthPct, lastSweep }) {
+  const seg = (n, cls) =>
+    n > 0 ? <div key={cls} className={cls} style={{ width: `${(n / total) * 100}%` }} /> : null;
+  return (
+    <div className="card mt-4 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-gray-700">Automation health</h2>
+        <span className="text-xs text-gray-500">
+          {counts.passed}/{total} healthy · {healthPct}%
+          {lastSweep ? ` · last run ${timeAgo(lastSweep.startedAt)}` : ' · never run'}
+        </span>
+      </div>
+      <div className="mt-2 flex h-3 w-full overflow-hidden rounded-full bg-gray-200">
+        {HEALTH.map((h) => seg(counts[h.key], h.seg))}
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {HEALTH.map((h) => (
+          <div key={h.key} className="rounded-lg border border-ink-600 bg-gray-50 px-3 py-2 text-center">
+            <div className={`text-2xl font-bold ${h.tone}`}>{counts[h.key]}</div>
+            <div className="text-xs text-gray-400">{h.label}</div>
+          </div>
         ))}
       </div>
     </div>
