@@ -72,13 +72,13 @@ function checkStatus(test, last) {
   return changed ? 'changed' : 'passed';
 }
 
-// Health buckets for the mini dashboard, in display order.
+// Health buckets for the mini dashboard, in display order. Soft, modern tones.
 const HEALTH = [
-  { key: 'passed', label: 'Healthy', tone: 'text-green-600', seg: 'bg-green-500' },
-  { key: 'changed', label: 'Changed', tone: 'text-amber-600', seg: 'bg-amber-500' },
-  { key: 'failed', label: 'Failing', tone: 'text-red-600', seg: 'bg-red-500' },
-  { key: 'notReady', label: "Can't run", tone: 'text-slate-500', seg: 'bg-slate-400' },
-  { key: 'pending', label: 'Not run yet', tone: 'text-gray-500', seg: 'bg-gray-300' },
+  { key: 'passed', label: 'Healthy', dot: 'bg-emerald-500', seg: 'bg-emerald-500' },
+  { key: 'changed', label: 'Changed', dot: 'bg-amber-400', seg: 'bg-amber-400' },
+  { key: 'failed', label: 'Failing', dot: 'bg-rose-500', seg: 'bg-rose-500' },
+  { key: 'notReady', label: "Can't run", dot: 'bg-slate-400', seg: 'bg-slate-300' },
+  { key: 'pending', label: 'Not run yet', dot: 'bg-ink-500', seg: 'bg-ink-500' },
 ];
 // Map a raw status to its dashboard bucket.
 const BUCKET = {
@@ -231,49 +231,57 @@ export default function Automations() {
 
   if (!tests) return <Spinner label="Loading automations…" />;
 
+  const statusChip = {
+    not_generated: { label: 'not generated', cls: 'bg-ink-700 text-gray-500' },
+    needs_steps: { label: 'no steps', cls: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200/70' },
+    changed: { label: 'changed', cls: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200/70' },
+  };
+
   return (
-    <div>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold">Automations</h1>
-            <span className="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand">
-              daily · scheduled
+    <div className="mx-auto max-w-5xl">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl font-semibold tracking-tight text-gray-900">Automations</h1>
+            <span className="rounded-full bg-ink-700 px-2.5 py-0.5 text-xs font-medium text-gray-500">
+              Daily · scheduled
             </span>
           </div>
-          <p className="mt-1 max-w-2xl text-sm text-gray-500">
+          <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-gray-500">
             Quick, read-only login-and-smoke checks generated from the admin{' '}
             <a href={`${ADMIN_BASE}/admin/tutorial`} target="_blank" rel="noreferrer" className="text-brand hover:underline">
               tutorial
             </a>
-            . They log in with the QA bot and verify each admin page still loads. These run on
-            their own morning schedule — separate from your Modules, Runs and Suites.
+            . The QA bot signs in and confirms each admin page still loads — on their own
+            morning schedule, separate from Modules, Runs and Suites.
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
           {missing.length > 0 && (
             <button onClick={generate} disabled={busy} className="btn-primary">
-              {busy ? 'Working…' : `+ Generate ${missing.length} test${missing.length === 1 ? '' : 's'}`}
+              {busy ? 'Working…' : `Generate ${missing.length} test${missing.length === 1 ? '' : 's'}`}
             </button>
           )}
           {autoTests.length > 0 && (
             <button onClick={runAll} disabled={busy} className="btn-ghost">
-              ▶ Run all now
+              <PlayIcon className="h-3.5 w-3.5" />
+              Run all
             </button>
           )}
         </div>
       </div>
 
       {note && (
-        <div className="mt-3 rounded-lg border border-brand/30 bg-brand/5 px-4 py-2 text-sm text-brand">
+        <div className="mt-4 rounded-xl border border-brand/20 bg-brand/5 px-4 py-2.5 text-sm text-brand-700">
           {note}
         </div>
       )}
 
       {!login && missing.length > 0 && (
-        <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-800">
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-800">
           To generate these, first create a reusable <strong>Log in</strong> component on the{' '}
-          <Link to="/components" className="underline">Components</Link> page (using{' '}
+          <Link to="/components" className="font-medium underline">Components</Link> page (using{' '}
           <code>{'{{LEV_TEST_EMAIL}}'}</code> / <code>{'{{LEV_TEST_PASSWORD}}'}</code>). The
           automations reuse it to log in every morning.
         </div>
@@ -283,26 +291,27 @@ export default function Automations() {
       <HealthSummary counts={counts} total={SPECS.length} healthPct={healthPct} lastSweep={lastSweep} />
 
       {attention.length > 0 && (
-        <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm">
-          <div className="mb-1.5 font-medium text-red-700">
+        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50/60 p-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-rose-700">
+            <AlertIcon className="h-4 w-4" />
             {attention.length} check{attention.length === 1 ? '' : 's'} need attention
           </div>
-          <ul className="space-y-1">
+          <ul className="mt-2.5 space-y-1.5">
             {attention.map((ch) => (
-              <li key={ch.spec.slug} className="flex items-center justify-between gap-2">
-                <span className="min-w-0 flex-1 truncate text-gray-700">
+              <li key={ch.spec.slug} className="flex items-center justify-between gap-3 text-sm">
+                <span className="min-w-0 flex-1 truncate text-gray-600">
                   <span className="text-gray-400">
-                    {ch.status === 'failed' ? '✗ failing' : ch.status === 'needs_steps' ? '⚠ no steps' : '＋ not generated'}
+                    {ch.status === 'failed' ? 'failing' : ch.status === 'needs_steps' ? 'no steps' : 'not generated'}
                     {' · '}
                   </span>
                   {ch.spec.title}
                 </span>
                 {ch.test ? (
-                  <Link to={`/tests/${ch.test.id}`} className="shrink-0 text-xs text-brand hover:underline">
+                  <Link to={`/tests/${ch.test.id}`} className="shrink-0 text-xs font-medium text-brand hover:underline">
                     {ch.status === 'failed' ? 'View' : 'Fix'}
                   </Link>
                 ) : (
-                  <span className="shrink-0 text-xs text-gray-400">Generate ↑</span>
+                  <span className="shrink-0 text-xs text-gray-400">Generate above</span>
                 )}
               </li>
             ))}
@@ -311,86 +320,86 @@ export default function Automations() {
       )}
 
       {/* Schedule explainer */}
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <Info title="When they run" body="Every morning at 05:30 UTC (~07:30 SAST / 08:30 IDT) via GitHub Actions — plus any time you press “Run all now”." />
-        <Info title="What's safe daily" body="Only read-only page loads run here. Anything that creates, edits or deletes data is NOT auto-generated — keep those as normal Module tests." />
-        <Info title="Catching tutorial updates" body="Set a visual baseline on the “Tutorial hub” check; the morning run then flags a ⚠ visual change whenever new tutorials or sections appear." />
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <Info title="When they run" body="Every morning at 05:30 UTC (~07:30 SAST / 08:30 IDT) via GitHub Actions — plus any time you press Run all." />
+        <Info title="Safe to run daily" body="Read-only page loads only. Anything that creates, edits or deletes data isn't auto-generated — keep those as normal Module tests." />
+        <Info title="Catching tutorial updates" body="Set a visual baseline on the Tutorial hub check; the morning run then flags a change whenever new tutorials or sections appear." />
       </div>
 
       {/* The automation set */}
-      <h2 className="mt-8 mb-2 text-sm font-semibold uppercase tracking-wide text-gray-400">
-        Checks ({generated.length}/{SPECS.length})
-      </h2>
-      <div className="card divide-y divide-ink-600">
-        {checks.map(({ spec, test, last, status }) => (
-          <div key={spec.slug} className="flex flex-wrap items-center gap-3 px-4 py-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                {spec.hub && <span title="Tutorial monitor">📣</span>}
-                <span className="truncate text-sm font-medium text-gray-800">{spec.title}</span>
-                {status === 'not_generated' && (
-                  <span className="rounded-full bg-ink-700 px-2 py-0.5 text-xs text-gray-500">
-                    not generated
-                  </span>
-                )}
-                {status === 'needs_steps' && (
-                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-700">
-                    no steps
-                  </span>
-                )}
-                {status === 'changed' && (
-                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-700" title="A page differs from its visual baseline">
-                    ⚠ changed
-                  </span>
-                )}
+      <div className="mb-2.5 mt-8 flex items-center justify-between">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-gray-400">Checks</h2>
+        <span className="text-xs text-gray-400">
+          {generated.length} of {SPECS.length} generated
+        </span>
+      </div>
+      <div className="card divide-y divide-ink-600/70 overflow-hidden">
+        {checks.map(({ spec, test, last, status }) => {
+          const chip = statusChip[status];
+          return (
+            <div
+              key={spec.slug}
+              className="flex flex-wrap items-center gap-3 px-4 py-3.5 transition-colors hover:bg-ink-700/40"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  {spec.hub && <BellIcon className="h-3.5 w-3.5 shrink-0 text-brand" />}
+                  <span className="truncate text-sm font-medium text-gray-800">{spec.title}</span>
+                  {chip && (
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${chip.cls}`}>
+                      {chip.label}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-0.5 text-xs text-gray-400">
+                  {spec.links.length} page{spec.links.length === 1 ? '' : 's'}
+                  {last && (
+                    <>
+                      {' · '}
+                      {timeAgo(last.startedAt)} · {fmtDuration(last.durationMs)}
+                    </>
+                  )}
+                </div>
               </div>
-              <div className="mt-0.5 text-xs text-gray-500">
-                {spec.links.length} page{spec.links.length === 1 ? '' : 's'}
-                {last && (
-                  <>
-                    {' · '}
-                    {timeAgo(last.startedAt)} · {fmtDuration(last.durationMs)}
-                  </>
-                )}
-              </div>
+              {last && <StatusBadge status={last.status} />}
+              {test ? (
+                <div className="flex shrink-0 items-center gap-1">
+                  <button onClick={() => runOne(test)} disabled={busy} className="btn-ghost py-1 px-2.5 text-xs">
+                    <PlayIcon className="h-3 w-3" />
+                    Run
+                  </button>
+                  <Link to={`/tests/${test.id}`} className="btn-ghost py-1 px-2.5 text-xs">
+                    Open
+                  </Link>
+                </div>
+              ) : (
+                <span className="shrink-0 text-xs text-gray-300">—</span>
+              )}
             </div>
-            {last && <StatusBadge status={last.status} />}
-            {test ? (
-              <div className="flex shrink-0 gap-1">
-                <button onClick={() => runOne(test)} disabled={busy} className="btn-ghost py-1 px-2.5 text-xs">
-                  ▶ Run
-                </button>
-                <Link to={`/tests/${test.id}`} className="btn-ghost py-1 px-2.5 text-xs">
-                  Open
-                </Link>
-              </div>
-            ) : (
-              <span className="shrink-0 text-xs text-gray-400">—</span>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Recent automation runs */}
-      <h2 className="mt-8 mb-2 text-sm font-semibold uppercase tracking-wide text-gray-400">
+      <h2 className="mb-2.5 mt-8 text-xs font-medium uppercase tracking-wide text-gray-400">
         Recent automation runs
       </h2>
-      <div className="card divide-y divide-ink-600">
+      <div className="card divide-y divide-ink-600/70 overflow-hidden">
         {autoRuns.length === 0 && (
-          <div className="p-6 text-center text-sm text-gray-500">
-            No automation runs yet. Generate the checks, then “Run all now” (or wait for the
-            morning sweep).
+          <div className="px-4 py-10 text-center text-sm text-gray-400">
+            No automation runs yet. Generate the checks, then Run all (or wait for the morning
+            sweep).
           </div>
         )}
         {autoRuns.slice(0, 40).map((r) => (
           <Link
             key={r.id}
             to={`/runs/${r.id}`}
-            className="flex items-center gap-3 px-4 py-2.5 hover:bg-ink-700/50"
+            className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-ink-700/40"
           >
             <StatusBadge status={r.status} />
-            <span className="min-w-0 flex-1 truncate text-sm">{r.testName}</span>
-            <span className="shrink-0 text-xs text-gray-500">
+            <span className="min-w-0 flex-1 truncate text-sm text-gray-700">{r.testName}</span>
+            <span className="shrink-0 text-xs text-gray-400">
               {timeAgo(r.startedAt)} · {fmtDuration(r.durationMs)}
             </span>
           </Link>
@@ -400,28 +409,38 @@ export default function Automations() {
   );
 }
 
-// Mini dashboard: a stacked health bar + one tile per bucket, so failing or
-// can't-run checks are obvious the moment you open the tab.
+// Mini dashboard: one big health figure, a thin segmented bar, and a calm
+// dot-legend — minimal, so failing / can't-run checks read at a glance.
 function HealthSummary({ counts, total, healthPct, lastSweep }) {
   const seg = (n, cls) =>
     n > 0 ? <div key={cls} className={cls} style={{ width: `${(n / total) * 100}%` }} /> : null;
   return (
-    <div className="card mt-4 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-gray-700">Automation health</h2>
-        <span className="text-xs text-gray-500">
-          {counts.passed}/{total} healthy · {healthPct}%
-          {lastSweep ? ` · last run ${timeAgo(lastSweep.startedAt)}` : ' · never run'}
+    <div className="card mt-5 p-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="text-xs font-medium uppercase tracking-wide text-gray-400">
+            Automation health
+          </div>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-3xl font-semibold tracking-tight text-gray-900">{healthPct}%</span>
+            <span className="text-sm text-gray-400">
+              {counts.passed} of {total} healthy
+            </span>
+          </div>
+        </div>
+        <span className="text-xs text-gray-400">
+          {lastSweep ? `Last run ${timeAgo(lastSweep.startedAt)}` : 'Never run'}
         </span>
       </div>
-      <div className="mt-2 flex h-3 w-full overflow-hidden rounded-full bg-gray-200">
+      <div className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-ink-700">
         {HEALTH.map((h) => seg(counts[h.key], h.seg))}
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2.5">
         {HEALTH.map((h) => (
-          <div key={h.key} className="rounded-lg border border-ink-600 bg-gray-50 px-3 py-2 text-center">
-            <div className={`text-2xl font-bold ${h.tone}`}>{counts[h.key]}</div>
-            <div className="text-xs text-gray-400">{h.label}</div>
+          <div key={h.key} className="flex items-center gap-2">
+            <span className={`h-2 w-2 rounded-full ${h.dot}`} />
+            <span className="text-sm font-semibold tabular-nums text-gray-700">{counts[h.key]}</span>
+            <span className="text-xs text-gray-400">{h.label}</span>
           </div>
         ))}
       </div>
@@ -431,9 +450,55 @@ function HealthSummary({ counts, total, healthPct, lastSweep }) {
 
 function Info({ title, body }) {
   return (
-    <div className="rounded-lg border border-ink-600 bg-gray-50 px-3 py-2.5">
-      <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">{title}</div>
-      <div className="mt-1 text-xs text-gray-600">{body}</div>
+    <div className="rounded-xl bg-ink-700/60 px-4 py-3">
+      <div className="text-xs font-medium text-gray-600">{title}</div>
+      <div className="mt-1 text-xs leading-relaxed text-gray-500">{body}</div>
     </div>
+  );
+}
+
+// — Minimal inline icons (Lucide-style), so the page uses crisp SVGs not emoji —
+function PlayIcon({ className = 'h-3.5 w-3.5' }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  );
+}
+
+function BellIcon({ className = 'h-4 w-4' }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+    </svg>
+  );
+}
+
+function AlertIcon({ className = 'h-4 w-4' }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
   );
 }
