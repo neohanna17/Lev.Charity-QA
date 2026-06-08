@@ -9,6 +9,7 @@ const navItems = [
   { to: '/', label: 'Modules', end: true, tour: 'nav-modules' },
   { to: '/runs', label: 'Runs', tour: 'nav-runs' },
   { to: '/suites', label: 'Suites', tour: 'nav-suites' },
+  { to: '/automations', label: 'Automations', tour: 'nav-automations' },
   { to: '/components', label: 'Components', tour: 'nav-components' },
   { to: '/reports', label: 'Reports', tour: 'nav-reports' },
   { to: '/guide', label: 'Guide', tour: 'nav-guide' },

@@ -50,6 +50,11 @@ export async function createTest(data) {
     steps: data.steps || [],
     data: data.data || null,
     tags: data.tags || [],
+    // Automation tests live in the separate "Automations" area (daily scheduled
+    // smoke checks), hidden from the normal Modules/Runs views. tutorialSlug
+    // ties a generated test back to its admin-tutorial category for sync.
+    automation: data.automation || false,
+    tutorialSlug: data.tutorialSlug || null,
     status: 'active',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -136,6 +141,9 @@ export async function enqueueRun(test, triggeredBy, opts = {}) {
     // ordinary runs. The runner substitutes {{name}} tokens in step values.
     dataRow: opts.dataRow || null,
     dataLabel: opts.dataLabel || null,
+    // Tag runs of automation tests so they stay in the Automations area and out
+    // of the normal Runs list. Derived from the test if not set explicitly.
+    automation: opts.automation || !!test?.automation,
     steps: [],
     durationMs: 0,
     browser: targetById(opts.target || 'chromium').engine,

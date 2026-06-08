@@ -433,6 +433,8 @@ async function enqueueAndRun(tests, triggeredBy, setupForTest) {
       // cross-browser matrices are launched on demand from the dashboard.
       target: wrap.target || 'chromium',
       batchId: null,
+      // Tag automation runs so the dashboard keeps them in the Automations area.
+      automation: !!test.automation || triggeredBy === 'automation',
       steps: [],
       durationMs: 0,
       browser: 'chromium',
@@ -484,13 +486,32 @@ async function runAllActive() {
   const snap = await db.collection('tests').get();
   const tests = snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((t) => t.status !== 'archived');
+    .filter((t) => t.status !== 'archived' && !t.automation); // automations run in their own sweep
   if (tests.length === 0) {
     console.log('No active tests to run.');
     return;
   }
   console.log(`Daily check: ${tests.length} active test(s).`);
   const failures = await enqueueAndRun(tests, 'schedule');
+  if (failures > 0) process.exitCode = 1;
+}
+
+// Enqueue and execute every active automation test. Runs as its own morning
+// sweep (separate from the regular daily sweep and from suites) so the daily
+// admin-tutorial / smoke checks happen unattended. Each automation test logs
+// in via its embedded Log in component step.
+async function runAutomations() {
+  await cleanupOldRuns().catch((e) => console.warn('Retention cleanup failed:', e.message));
+  const snap = await db.collection('tests').where('automation', '==', true).get();
+  const tests = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((t) => t.status !== 'archived');
+  if (tests.length === 0) {
+    console.log('No automation tests to run.');
+    return;
+  }
+  console.log(`Automation sweep: ${tests.length} test(s).`);
+  const failures = await enqueueAndRun(tests, 'automation');
   if (failures > 0) process.exitCode = 1;
 }
 
@@ -582,6 +603,8 @@ async function main() {
     if (outcome === 'failed' || outcome === 'error') process.exitCode = 1;
   } else if (process.env.RUN_ALL === '1') {
     await runAllActive();
+  } else if (process.env.RUN_AUTOMATIONS === '1') {
+    await runAutomations();
   } else if (process.env.RUN_SCHEDULED === '1') {
     await runScheduledSuites();
   } else {

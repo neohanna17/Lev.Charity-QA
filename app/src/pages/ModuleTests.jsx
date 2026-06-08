@@ -28,7 +28,7 @@ export default function ModuleTests() {
 
   if (!tests) return <Spinner label="Loading tests…" />;
 
-  const inModule = tests.filter((t) => moduleOf(t) === moduleName);
+  const inModule = tests.filter((t) => !t.automation && moduleOf(t) === moduleName);
   const lastRunFor = (testId) => runs.find((r) => r.testId === testId);
 
   async function handleNew() {

@@ -106,8 +106,10 @@ export default function Modules() {
   const lastRunFor = (testId) => runs.find((r) => r.testId === testId);
 
   // Group tests by module, then summarise health from each test's last run.
+  // Automation tests live in the separate Automations area, so skip them here.
   const groups = {};
   for (const t of tests) {
+    if (t.automation) continue;
     const m = moduleOf(t);
     (groups[m] ||= []).push(t);
   }

@@ -10,6 +10,7 @@ import TestDetail from './pages/TestDetail';
 import Runs from './pages/Runs';
 import RunDetail from './pages/RunDetail';
 import Suites from './pages/Suites';
+import Automations from './pages/Automations';
 import Components from './pages/Components';
 import Reports from './pages/Reports';
 import Guide from './pages/Guide';
@@ -68,6 +69,7 @@ export default function App() {
         <Route path="/runs" element={<Runs />} />
         <Route path="/runs/:id" element={<RunDetail />} />
         <Route path="/suites" element={<Suites />} />
+        <Route path="/automations" element={<Automations />} />
         <Route path="/components" element={<Components />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/guide" element={<Guide />} />

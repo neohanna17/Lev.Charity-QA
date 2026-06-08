@@ -96,7 +96,7 @@ export default function Runs() {
 
   const moduleByTest = useMemo(() => {
     const m = {};
-    for (const t of tests) m[t.id] = moduleOf(t);
+    for (const t of tests) if (!t.automation) m[t.id] = moduleOf(t);
     return m;
   }, [tests]);
 
@@ -106,6 +106,7 @@ export default function Runs() {
     if (!runs) return [];
     const q = search.trim().toLowerCase();
     return runs.filter((r) => {
+      if (r.automation) return false; // automation runs live on the Automations page
       if (module !== 'all' && (moduleByTest[r.testId] || 'Uncategorized') !== module) return false;
       if (q && !(r.testName || '').toLowerCase().includes(q) && !(r.suiteName || '').toLowerCase().includes(q))
         return false;
