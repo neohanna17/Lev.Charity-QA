@@ -172,6 +172,12 @@ function FeedbackCard({ item }) {
   const [commenting, setCommenting] = useState(false);
   const [draftComment, setDraftComment] = useState(item.comment || '');
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(false);
+
+  async function saveCategory(value) {
+    if (value && value !== item.category) await saveFeedback(item.id, { category: value });
+    setEditingCategory(false);
+  }
 
   async function saveDetails() {
     setSavingEdit(true);
@@ -205,9 +211,29 @@ function FeedbackCard({ item }) {
   return (
     <div className={`card p-4 ${item.status === 'done' ? 'opacity-70' : ''}`}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${catCls(item.category)}`}>
-          {item.category}
-        </span>
+        {editingCategory ? (
+          <select
+            autoFocus
+            className="input max-w-[170px] py-0.5 text-xs"
+            value={item.category}
+            onChange={(e) => saveCategory(e.target.value)}
+            onBlur={() => setEditingCategory(false)}
+          >
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <button
+            onClick={() => setEditingCategory(true)}
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${catCls(item.category)} hover:ring-1 hover:ring-ink-500`}
+            title="Click to change the type — e.g. reclassify as a Bug"
+          >
+            {item.category} ▾
+          </button>
+        )}
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.cls}`}>
           {status.label}
         </span>
