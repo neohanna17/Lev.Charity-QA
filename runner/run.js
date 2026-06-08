@@ -710,7 +710,37 @@ async function runScheduledSuites() {
   if (failures > 0) process.exitCode = 1;
 }
 
+// Reap orphaned runs left "running" by a previous job that died mid-flight
+// (segfault / timeout / cancelled), which would otherwise show as forever
+// "in progress" on the dashboard. The concurrency group guarantees no other
+// job is executing while this one runs, so any "running" doc older than a small
+// grace window is genuinely abandoned. Marks them errored so they're visible
+// and re-runnable. Stale "queued" runs are left alone — drainQueue picks those
+// up normally.
+async function reapStaleRuns(graceMinutes = 10) {
+  const cutoff = Date.now() - graceMinutes * 60000;
+  let reaped = 0;
+  const snap = await db.collection('runs').where('status', '==', 'running').limit(200).get();
+  for (const doc of snap.docs) {
+    const t = doc.data().startedAt;
+    const ms = t?.toMillis ? t.toMillis() : 0;
+    if (ms && ms > cutoff) continue; // too recent — leave it
+    await doc.ref
+      .update({
+        status: 'error',
+        error: 'Abandoned — the runner stopped before finishing this run (it will not resume).',
+        finishedAt: FieldValue.serverTimestamp(),
+      })
+      .catch(() => {});
+    reaped += 1;
+  }
+  if (reaped) console.log(`Reaped ${reaped} abandoned "running" run(s).`);
+}
+
 async function main() {
+  // Always clear orphaned "running" docs from a prior crashed job first.
+  await reapStaleRuns().catch((e) => console.warn('reap failed:', e.message));
+
   const runId = process.env.RUN_ID;
   if (runId) {
     const outcome = await executeRun(runId);
