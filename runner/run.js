@@ -328,18 +328,14 @@ async function executeRun(runId) {
   const target = resolveTarget(run.target);
   console.log(`  target: ${target.id}${target.device ? ` (${run.target})` : ''}`);
   if (run.dataLabel) console.log(`  data: ${run.dataLabel}`);
-  const browser = await target.engine.launch();
   const artifactDir = path.join(os.tmpdir(), `run-${runId}`);
   await fs.mkdir(artifactDir, { recursive: true });
   // A mobile target brings its own viewport/touch/user-agent via the device
   // descriptor; desktop targets use the standard viewport.
   const viewport = target.device?.viewport || VIEWPORT;
-  const context = await browser.newContext({
-    ...(target.device || { viewport }),
-    recordVideo: { dir: artifactDir, size: viewport },
-  });
-  await context.tracing.start({ screenshots: true, snapshots: true, sources: false });
-  const page = await context.newPage();
+  // --disable-dev-shm-usage avoids Chromium crashing (SIGSEGV) on CI runners
+  // whose /dev/shm is tiny, especially with several browsers in parallel.
+  const launchArgs = target.engine === chromium ? ['--disable-dev-shm-usage'] : [];
 
   const collected = [];
   const startedAt = Date.now();
@@ -347,8 +343,20 @@ async function executeRun(runId) {
   let errorMsg = null;
   let videoUrl = null;
   let traceUrl = null;
+  // Hoisted so the catch/finally can clean up even if launch/context creation
+  // throws (a browser segfault must NOT crash the whole drain/sweep).
+  let browser = null;
+  let context = null;
+  let page = null;
 
   try {
+    browser = await target.engine.launch({ args: launchArgs });
+    context = await browser.newContext({
+      ...(target.device || { viewport }),
+      recordVideo: { dir: artifactDir, size: viewport },
+    });
+    await context.tracing.start({ screenshots: true, snapshots: true, sources: false });
+    page = await context.newPage();
     let i = 0;
     const { status } = await runTest(page, effectiveTest, async (result, pg) => {
       const index = i;
@@ -386,23 +394,25 @@ async function executeRun(runId) {
     console.error('run error:', e);
   } finally {
     try {
-      const video = page.video();
-      const tracePath = path.join(artifactDir, 'trace.zip');
-      await context.tracing.stop({ path: tracePath }).catch(() => {});
-      await context.close(); // flushes the video file to disk
-      if (video) {
-        const vpath = await video.path();
-        videoUrl = await uploadBuffer(`runs/${runId}/video.webm`, await fs.readFile(vpath), 'video/webm');
+      if (context) {
+        const video = page ? page.video() : null;
+        const tracePath = path.join(artifactDir, 'trace.zip');
+        await context.tracing.stop({ path: tracePath }).catch(() => {});
+        await context.close(); // flushes the video file to disk
+        if (video) {
+          const vpath = await video.path();
+          videoUrl = await uploadBuffer(`runs/${runId}/video.webm`, await fs.readFile(vpath), 'video/webm');
+        }
+        traceUrl = await uploadBuffer(
+          `runs/${runId}/trace.zip`,
+          await fs.readFile(tracePath),
+          'application/zip',
+        ).catch(() => null);
       }
-      traceUrl = await uploadBuffer(
-        `runs/${runId}/trace.zip`,
-        await fs.readFile(tracePath),
-        'application/zip',
-      );
     } catch (e) {
       console.warn('video/trace upload failed:', e.message);
     }
-    await browser.close();
+    if (browser) await browser.close().catch(() => {});
   }
 
   await runRef.update({
@@ -438,6 +448,28 @@ async function executeRun(runId) {
   return outcome;
 }
 
+// Execute one run, but never let it throw: a browser segfault or any crash is
+// caught here, the run doc is marked errored, and the caller's pool keeps going
+// instead of the whole drain/sweep dying. Returns true if the run didn't pass.
+async function safeExecute(id) {
+  try {
+    const outcome = await executeRun(id);
+    return outcome === 'failed' || outcome === 'error';
+  } catch (e) {
+    console.error(`run ${id} crashed (continuing with the rest):`, e.message);
+    await db
+      .collection('runs')
+      .doc(id)
+      .update({
+        status: 'error',
+        error: `Runner crashed: ${e.message}`,
+        finishedAt: FieldValue.serverTimestamp(),
+      })
+      .catch(() => {});
+    return true;
+  }
+}
+
 async function drainQueue() {
   // No orderBy so no composite index is required; the queued set is small, so
   // we sort by start time in memory.
@@ -455,8 +487,7 @@ async function drainQueue() {
     docs.map((d) => d.id),
     concurrency,
     async (id) => {
-      const outcome = await executeRun(id);
-      if (outcome === 'failed' || outcome === 'error') failures += 1;
+      if (await safeExecute(id)) failures += 1;
     },
   );
   if (failures > 0) process.exitCode = 1;
@@ -513,8 +544,7 @@ async function enqueueAndRun(tests, triggeredBy, setupForTest) {
 
   let failures = 0;
   await pool(runIds, concurrency, async (id) => {
-    const outcome = await executeRun(id);
-    if (outcome === 'failed' || outcome === 'error') failures += 1;
+    if (await safeExecute(id)) failures += 1;
   });
   return failures;
 }
