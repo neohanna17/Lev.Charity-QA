@@ -187,7 +187,13 @@ async function notifyAutomationChange({ runId, testName, changed }) {
     .map((s) => `• ${s.label || s.type} — ${Math.round((s.visual?.ratio || 0) * 100)}% different`)
     .join('\n');
 
+  // Ping Hanna (or whoever DISCORD_AUTOMATION_MENTION points at) so a real
+  // Discord notification fires — same idea as the feature-request pings. Set it
+  // to "<@USER_ID>" or "<@&ROLE_ID>"; allowed_mentions lets it resolve.
+  const mention = (process.env.DISCORD_AUTOMATION_MENTION || '<@1334096973900419072>').trim();
   const body = {
+    content: `${mention ? mention + ' ' : ''}👀 **Heads up — an automated check spotted a change** on ${testName || 'an admin page'}.`,
+    allowed_mentions: { parse: ['users', 'roles'] },
     embeds: [
       {
         title: `👀 Automation noticed a change: ${testName || 'Automation'}`,
