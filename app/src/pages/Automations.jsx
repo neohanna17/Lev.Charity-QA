@@ -209,6 +209,23 @@ export default function Automations() {
     }
   }
 
+  // One-click "the change is fine": recapture this check's visual baseline so it
+  // stops being flagged. Quick run, no extra setup.
+  async function rebaseline(test) {
+    if (!confirm(`Accept the current look as the new baseline for “${test.name}”? A quick run recaptures it.`))
+      return;
+    setBusy(true);
+    setNote('');
+    try {
+      await triggerRun(test, { updateBaselines: true, automation: true });
+      setNote('✓ Re-baselining — the new baseline is captured on this run. It won’t flag again unless it changes further.');
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!tests) return <Spinner label="Loading automations…" />;
 
   const statusChip = {
@@ -375,6 +392,16 @@ export default function Automations() {
               {last && <StatusBadge status={last.status} />}
               {test ? (
                 <div className="flex shrink-0 items-center gap-1">
+                  {status === 'changed' && (
+                    <button
+                      onClick={() => rebaseline(test)}
+                      disabled={busy}
+                      className="btn-ghost py-1 px-2.5 text-xs"
+                      title="Accept the change — set the current look as the new baseline"
+                    >
+                      Re-baseline
+                    </button>
+                  )}
                   <button onClick={() => runOne(test)} disabled={busy} className="btn-ghost py-1 px-2.5 text-xs">
                     <PlayIcon className="h-3 w-3" />
                     Run

@@ -14,8 +14,10 @@ export default function RunDetail() {
   const navigate = useNavigate();
   const [run, setRun] = useState(undefined);
   const [shot, setShot] = useState(null);
+  const [compare, setCompare] = useState(null); // { label, baselineUrl, currentUrl, diffUrl }
   const [bugOpen, setBugOpen] = useState(false);
   const [rerunning, setRerunning] = useState(false);
+  const [rebaselining, setRebaselining] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => watchRun(id, setRun), [id]);
@@ -25,6 +27,36 @@ export default function RunDetail() {
 
   const pending = run.status === 'queued' || run.status === 'running';
   const failed = run.status === 'failed' || run.status === 'error';
+  const changedSteps = (run.steps || []).filter((s) => s.visual?.status === 'changed');
+
+  // One-click "accept the new look": re-run capturing fresh visual baselines so
+  // this change (if it's expected) stops being flagged. Same target as this run.
+  async function handleRebaseline() {
+    if (
+      !confirm(
+        'Set the current look as the new visual baseline? A quick run will recapture every step’s baseline, and future runs compare against it.',
+      )
+    )
+      return;
+    setRebaselining(true);
+    try {
+      const test = await getTest(run.testId);
+      if (!test) {
+        alert('The test for this run no longer exists.');
+        return;
+      }
+      const runId = await triggerRun(test, {
+        updateBaselines: true,
+        target: run.target || 'chromium',
+        automation: run.automation || false,
+      });
+      navigate(`/runs/${runId}`);
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setRebaselining(false);
+    }
+  }
 
   async function handleRerun() {
     setRerunning(true);
@@ -88,6 +120,16 @@ export default function RunDetail() {
             >
               ✎ Edit this test
             </Link>
+          )}
+          {!pending && changedSteps.length > 0 && (
+            <button
+              onClick={handleRebaseline}
+              disabled={rebaselining}
+              className="btn-ghost py-1.5 px-3 text-xs"
+              title="The flagged changes look fine — make the current look the new baseline"
+            >
+              {rebaselining ? 'Starting…' : `✓ Accept ${changedSteps.length} change${changedSteps.length === 1 ? '' : 's'} as baseline`}
+            </button>
           )}
           {failed && (
             <button onClick={() => setBugOpen(true)} className="btn-ghost py-1.5 px-3 text-xs">
@@ -218,32 +260,33 @@ export default function RunDetail() {
                 {s.label || s.type}
               </span>
               {s.visual?.status === 'changed' && (
-                <span
-                  className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-700"
-                  title={s.visual.note || 'Looks different from the baseline'}
+                <button
+                  onClick={() =>
+                    setCompare({
+                      label: s.label || s.type,
+                      baselineUrl: s.visual.baselineUrl,
+                      currentUrl: s.screenshotUrl,
+                      diffUrl: s.visual.diffUrl,
+                      note: s.visual.note,
+                    })
+                  }
+                  className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 hover:bg-amber-500/25"
+                  title={s.visual.note || 'Compare baseline vs current to see exactly what changed'}
                 >
-                  ⚠ visual {Math.round((s.visual.ratio || 0) * 100)}%
-                </span>
+                  ⚠ change {Math.round((s.visual.ratio || 0) * 100)}% · compare
+                </button>
               )}
-              {s.visual?.status === 'baseline-created' && (
-                <span className="rounded-full bg-ink-600 px-2 py-0.5 text-xs text-gray-400">
-                  baseline set
+              {(s.visual?.status === 'baseline-created' || s.visual?.status === 'baseline-updated') && (
+                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-700">
+                  baseline {s.visual.status === 'baseline-updated' ? 'updated' : 'set'}
                 </span>
               )}
               <span className="text-xs text-gray-500">{fmtDuration(s.durationMs)}</span>
-              {s.visual?.diffUrl && (
-                <button
-                  onClick={() => setShot(s.visual.diffUrl)}
-                  className="btn-ghost py-1 px-2 text-xs"
-                  title="View visual diff"
-                >
-                  🔍
-                </button>
-              )}
               {s.screenshotUrl && (
                 <button
                   onClick={() => setShot(s.screenshotUrl)}
                   className="btn-ghost py-1 px-2 text-xs"
+                  title="View this step's screenshot"
                 >
                   📷
                 </button>
@@ -278,7 +321,69 @@ export default function RunDetail() {
         </div>
       )}
 
+      {compare && (
+        <div
+          className="fixed inset-0 z-50 overflow-auto bg-black/80 p-4 sm:p-6"
+          onClick={() => setCompare(null)}
+        >
+          <div
+            className="mx-auto max-w-6xl rounded-xl bg-white p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-gray-900">What changed</div>
+                <div className="truncate text-xs text-gray-500">{compare.label}</div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleRebaseline}
+                  disabled={rebaselining}
+                  className="btn-ghost py-1.5 px-3 text-xs"
+                  title="The change is expected — make the current look the new baseline"
+                >
+                  {rebaselining ? 'Starting…' : '✓ Looks fine — set as new baseline'}
+                </button>
+                <button onClick={() => setCompare(null)} className="btn-ghost py-1.5 px-3 text-xs">
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <Figure label="Baseline (expected)" src={compare.baselineUrl} />
+              <Figure label="Current (this run)" src={compare.currentUrl} />
+              <Figure label="Difference — red = changed" src={compare.diffUrl} />
+            </div>
+            <p className="mt-3 text-xs text-gray-500">
+              {compare.note ? (
+                <span className="font-medium text-amber-700">{compare.note}. </span>
+              ) : null}
+              Compare <strong>Baseline</strong> and <strong>Current</strong> to spot the changed
+              field; the <strong>Difference</strong> image marks exactly where in red. Click any
+              image to open it full-size.
+            </p>
+          </div>
+        </div>
+      )}
+
       {bugOpen && <BugReportModal run={run} onClose={() => setBugOpen(false)} />}
     </div>
+  );
+}
+
+function Figure({ label, src }) {
+  return (
+    <figure className="min-w-0">
+      <figcaption className="mb-1 text-xs font-medium text-gray-500">{label}</figcaption>
+      {src ? (
+        <a href={src} target="_blank" rel="noreferrer">
+          <img src={src} alt={label} className="w-full rounded-lg border border-ink-600" />
+        </a>
+      ) : (
+        <div className="grid h-40 place-items-center rounded-lg border border-dashed border-ink-500 text-xs text-gray-400">
+          not available
+        </div>
+      )}
+    </figure>
   );
 }

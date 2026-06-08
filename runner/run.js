@@ -114,7 +114,18 @@ async function compareVisual({ testId, runId, index, shot, update, target }) {
 
   const { width, height } = base;
   const diff = new PNG({ width, height });
-  const n = pixelmatch(base.data, cur.data, diff.data, width, height, { threshold: 0.1 });
+  const n = pixelmatch(base.data, cur.data, diff.data, width, height, {
+    // Per-pixel colour tolerance: higher = ignore minor sub-pixel / rendering
+    // noise so only real changes register. includeAA:false means anti-aliased
+    // edges aren't counted as changes either.
+    threshold: 0.15,
+    includeAA: false,
+    // Show the page faintly behind the change markers (instead of a near-blank
+    // image) so the diff is actually readable, with changes in solid red.
+    alpha: 0.45,
+    aaColor: [255, 210, 0],
+    diffColor: [255, 30, 30],
+  });
   const ratio = n / (width * height);
   if (ratio > VISUAL_THRESHOLD) {
     const diffUrl = await uploadBuffer(
@@ -122,7 +133,13 @@ async function compareVisual({ testId, runId, index, shot, update, target }) {
       PNG.sync.write(diff),
       'image/png',
     );
-    return { status: 'changed', ratio, diffUrl, baselineUrl: await signedUrl(baseFile) };
+    return {
+      status: 'changed',
+      ratio,
+      changedPixels: n,
+      diffUrl,
+      baselineUrl: await signedUrl(baseFile),
+    };
   }
   return { status: 'match', ratio };
 }
