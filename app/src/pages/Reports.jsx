@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { watchRecentRuns, watchTests } from '../lib/db';
 import StatusBadge from '../components/StatusBadge';
 import Spinner from '../components/Spinner';
+import AutomationReport from '../components/AutomationReport';
 import { timeAgo, fmtDuration, tsToDate } from '../lib/format';
 import { moduleOf } from '../lib/schema';
 
@@ -19,6 +20,7 @@ export default function Reports() {
   const [runs, setRuns] = useState(null);
   const [tests, setTests] = useState([]);
   const [days, setDays] = useState(7);
+  const [view, setView] = useState('modules'); // 'modules' | 'automations'
 
   useEffect(() => {
     const u1 = watchRecentRuns(setRuns, 500);
@@ -38,7 +40,10 @@ export default function Reports() {
   const stats = useMemo(() => {
     if (!runs) return null;
     const cutoff = days ? Date.now() - days * 86400000 : 0;
+    // Module health covers manually-built tests only — automation (smoke/flow)
+    // runs are reported separately in the Automations view.
     const inWindow = runs.filter((r) => {
+      if (r.automation) return false;
       const d = tsToDate(r.startedAt);
       return d ? d.getTime() >= cutoff : false;
     });
@@ -124,24 +129,52 @@ export default function Reports() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Reports</h1>
-          <p className="text-sm text-gray-500">Health and trends across all test runs.</p>
+          <p className="text-sm text-gray-500">
+            {view === 'modules'
+              ? 'Health and trends across your manually-built module tests.'
+              : 'Daily automated smoke & change checks, grouped by admin-tutorial area.'}
+          </p>
         </div>
-        <div className="flex gap-1 rounded-lg border border-ink-600 bg-white p-1" data-tour="reports-window">
-          {WINDOWS.map((w) => (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1 rounded-lg border border-ink-600 bg-white p-1">
             <button
-              key={w.value}
-              onClick={() => setDays(w.value)}
+              onClick={() => setView('modules')}
               className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                days === w.value ? 'bg-brand/10 text-brand' : 'text-gray-500 hover:text-gray-800'
+                view === 'modules' ? 'bg-brand/10 text-brand' : 'text-gray-500 hover:text-gray-800'
               }`}
             >
-              {w.label}
+              Modules
             </button>
-          ))}
+            <button
+              onClick={() => setView('automations')}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                view === 'automations' ? 'bg-brand/10 text-brand' : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              Automations
+            </button>
+          </div>
+          {view === 'modules' && (
+            <div className="flex gap-1 rounded-lg border border-ink-600 bg-white p-1" data-tour="reports-window">
+              {WINDOWS.map((w) => (
+                <button
+                  key={w.value}
+                  onClick={() => setDays(w.value)}
+                  className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                    days === w.value ? 'bg-brand/10 text-brand' : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  {w.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {stats.total === 0 ? (
+      {view === 'automations' ? (
+        <AutomationReport runs={runs} tests={tests} />
+      ) : stats.total === 0 ? (
         <div className="card mt-6 p-10 text-center text-gray-500">
           No finished runs in this window.
         </div>

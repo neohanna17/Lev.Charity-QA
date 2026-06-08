@@ -4,30 +4,10 @@ import { watchTests, watchRecentRuns, watchComponents, createTest, enqueueRun } 
 import { triggerRun } from '../lib/triggerRun';
 import { useAuth } from '../context/AuthContext';
 import { cryptoId } from '../lib/schema';
-import { TUTORIAL_AUTOMATIONS, ADMIN_BASE, TUTORIAL_HUB } from '../lib/tutorialAutomations';
+import { SPECS, ADMIN_BASE } from '../lib/automations';
 import StatusBadge from '../components/StatusBadge';
 import Spinner from '../components/Spinner';
 import { timeAgo, fmtDuration } from '../lib/format';
-
-const HUB_SLUG = '__tutorial_hub__';
-
-// Every automation we know how to generate: the tutorial-hub monitor first,
-// then one smoke check per tutorial category.
-const SPECS = [
-  {
-    slug: HUB_SLUG,
-    title: 'Tutorial hub — daily update check',
-    module: 'Tutorial Monitor',
-    links: [TUTORIAL_HUB],
-    hub: true,
-  },
-  ...TUTORIAL_AUTOMATIONS.map((c) => ({
-    slug: c.slug,
-    title: c.title,
-    module: c.title,
-    links: c.links,
-  })),
-];
 
 // Build the steps for one automation test: log in, then visit each admin page
 // and assert the URL landed (catches auth failures, redirects, dead links).
