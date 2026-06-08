@@ -173,6 +173,49 @@ async function notifyDiscord({ runId, testName, outcome, errorMsg, steps, durati
   }
 }
 
+// Heads-up ping when an automation run sees a page change from its visual
+// baseline — most usefully, a new tutorial/section on the admin Tutorial hub.
+// Uses the same Discord webhook as failure alerts (no-op if unset).
+async function notifyAutomationChange({ runId, testName, changed }) {
+  const url = process.env.DISCORD_WEBHOOK_URL;
+  if (!url || !changed?.length) return;
+
+  const base = (process.env.DASHBOARD_URL || '').replace(/\/+$/, '');
+  const link = base ? `${base}/runs/${runId}` : undefined;
+  const lines = changed
+    .slice(0, 8)
+    .map((s) => `• ${s.label || s.type} — ${Math.round((s.visual?.ratio || 0) * 100)}% different`)
+    .join('\n');
+
+  const body = {
+    embeds: [
+      {
+        title: `👀 Automation noticed a change: ${testName || 'Automation'}`,
+        url: link,
+        color: 0xf59e0b,
+        description:
+          `${changed.length} step(s) look different from the visual baseline — ` +
+          `the page may have been updated (e.g. a new tutorial or section).\n\n${lines}` +
+          `\n\nIf the change is expected, open the run and re-set the visual baseline.`,
+        timestamp: new Date().toISOString(),
+        footer: { text: 'Lev.Charity QA · Automations' },
+      },
+    ],
+  };
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) console.warn('Discord change notify failed:', res.status);
+    else console.log('→ Discord automation-change ping sent');
+  } catch (e) {
+    console.warn('Discord change notify error:', e.message);
+  }
+}
+
 // Replace any "component" steps with the steps of the referenced component.
 // One level deep: a component's own steps must not contain components (the
 // editor enforces this; we also defensively skip any that slip through).
@@ -375,6 +418,17 @@ async function executeRun(runId) {
     steps: collected,
     durationMs: Date.now() - startedAt,
   });
+  // Automation runs additionally ping Discord when a page looks different from
+  // its visual baseline — e.g. a new tutorial/section was published. (The run
+  // itself still "passes"; a visual change is a heads-up, not a failure.)
+  if (run.automation) {
+    const changed = collected.filter((s) => s.visual?.status === 'changed');
+    if (changed.length) {
+      await notifyAutomationChange({ runId, testName: test.name, changed }).catch((e) =>
+        console.warn('automation change notify failed:', e.message),
+      );
+    }
+  }
   return outcome;
 }
 

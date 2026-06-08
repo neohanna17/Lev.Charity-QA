@@ -560,8 +560,59 @@ const SECTIONS = [
     ),
   },
   {
+    id: 'automations',
+    title: '12 · Automations — daily scheduled checks',
+    summary: 'Log in every morning and smoke-check the admin pages & tutorial.',
+    body: (
+      <>
+        <p>
+          The <Link to="/automations">Automations</Link> tab is a separate area for quick,
+          read-only checks we run <strong>automatically every morning</strong>. The QA bot
+          logs in and visits the admin pages listed in the{' '}
+          <a href="https://lev.charity/admin/tutorial" target="_blank" rel="noreferrer">
+            admin tutorial
+          </a>
+          , confirming each one still loads. They’re deliberately kept out of Modules, Runs
+          and Suites so they don’t clutter your day-to-day testing.
+        </p>
+        <p>
+          <strong>Setting them up (one time):</strong>
+        </p>
+        <ol>
+          <li>
+            Make sure a <strong>Log in</strong> reusable component exists (see section 5) —
+            the automations reuse it to sign in.
+          </li>
+          <li>
+            On the Automations tab, click <strong>“+ Generate tests”</strong>. This creates
+            one check per tutorial category, plus a <strong>Tutorial hub</strong> monitor.
+          </li>
+          <li>
+            Open the <strong>Tutorial hub</strong> check and press{' '}
+            <strong>Set visual baseline</strong> once. From then on, the morning run flags a{' '}
+            <strong>⚠ visual change</strong> whenever new tutorials or sections appear — and{' '}
+            <strong>pings Discord</strong> so you don’t have to watch for it.
+          </li>
+        </ol>
+        <p>
+          They run on their own cron at <strong>05:30 UTC</strong> (~07:30 SAST / 08:30 IDT),
+          and you can press <strong>“Run all now”</strong> any time. Each check shows its last
+          status, and there’s a dedicated run history at the bottom of the tab.
+        </p>
+        <p className="tip">
+          <strong>What belongs here vs. Modules.</strong> Automations are{' '}
+          <em>read-only page-load checks</em> only — safe to run unattended daily. Anything
+          that <strong>creates, edits or deletes</strong> data (making a campaign, inviting a
+          user, sending an eCard) is <em>not</em> auto-generated, because running it every
+          morning would pollute live data. Keep those as normal Module tests you run on
+          purpose.
+        </p>
+      </>
+    ),
+  },
+  {
     id: 'reports',
-    title: '12 · Reports',
+    title: '13 · Reports',
     summary: 'Pass rates, flaky tests and trends.',
     body: (
       <>
@@ -577,7 +628,7 @@ const SECTIONS = [
   },
   {
     id: 'bugs',
-    title: '13 · File a Jira-ready bug',
+    title: '14 · File a Jira-ready bug',
     summary: 'Turn a failure into a ticket in two clicks.',
     body: (
       <>
