@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { QA_PLAN } from '../lib/qaPlan';
-import { watchQaStatus, setQaStatus } from '../lib/db';
+import { watchQaStatus, setQaStatus, setQaNote } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { timeAgo } from '../lib/format';
 
@@ -105,6 +105,10 @@ export default function QAPlan({ readOnly = false }) {
     () => Object.fromEntries(QA_PLAN.map((m) => [m.code, tally(m.tasks, statusMap)])),
     [statusMap],
   );
+
+  async function saveNote(taskId, note) {
+    await setQaNote(taskId, note, user);
+  }
 
   async function mark(taskId, status) {
     setSaving(taskId);
@@ -214,6 +218,7 @@ export default function QAPlan({ readOnly = false }) {
           setFilter={setFilter}
           onBack={() => setSelected(null)}
           onMark={mark}
+          onNote={saveNote}
           saving={saving}
           readOnly={readOnly}
         />
@@ -232,7 +237,7 @@ function Stat({ label, value, sub, tone }) {
   );
 }
 
-function ModuleDetail({ module, counts, statusMap, filter, setFilter, onBack, onMark, saving, readOnly }) {
+function ModuleDetail({ module, counts, statusMap, filter, setFilter, onBack, onMark, onNote, saving, readOnly }) {
   const tasks = module.tasks.filter((t) => {
     if (filter === 'all') return true;
     return (statusMap[t.id]?.status || DEFAULT_STATUS) === filter;
@@ -289,70 +294,156 @@ function ModuleDetail({ module, counts, statusMap, filter, setFilter, onBack, on
         {tasks.length === 0 && (
           <div className="p-8 text-center text-sm text-gray-500">No tasks in this view.</div>
         )}
-        {tasks.map((t) => {
-          const meta = statusMap[t.id];
-          const status = meta?.status || DEFAULT_STATUS;
-          return (
-            <div key={t.id} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-start sm:gap-4">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-500">
-                    {t.id}
-                  </span>
-                  {t.priority && (
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-                        PRIORITY_CLASS[t.priority] || 'bg-gray-200 text-gray-600'
-                      }`}
-                    >
-                      {t.priority}
-                    </span>
-                  )}
-                  {t.type && <span className="text-xs text-gray-400">{t.type}</span>}
-                </div>
-                <div className="mt-1 text-sm font-medium text-gray-800">{t.feature}</div>
-                {t.verify && <div className="mt-0.5 text-xs text-gray-500">{t.verify}</div>}
-                {meta?.updatedBy && (
-                  <div className={`mt-1 text-xs ${STATUS_BY[status]?.text || 'text-gray-400'}`}>
-                    {STATUS_BY[status]?.label} · {meta.updatedBy}
-                    {meta.updatedAt ? ` · ${timeAgo(meta.updatedAt)}` : ''}
-                  </div>
-                )}
-              </div>
-
-              {/* Status: read-only badge for shared view, buttons otherwise */}
-              {readOnly ? (
-                <div className="shrink-0">
-                  <span
-                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-                      STATUS_BY[status]?.chip || ''
-                    }`}
-                  >
-                    <span className={`h-2 w-2 rounded-full ${STATUS_BY[status]?.dot || ''}`} />
-                    {STATUS_BY[status]?.label}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex shrink-0 gap-1 rounded-lg border border-ink-600 bg-gray-50 p-1">
-                  {STATUSES.map((s) => (
-                    <button
-                      key={s.value}
-                      onClick={() => onMark(t.id, s.value)}
-                      disabled={saving === t.id}
-                      className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
-                        status === s.value ? s.active : 'text-gray-500 hover:bg-white'
-                      }`}
-                      title={`Mark as ${s.label}`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {tasks.map((t) => (
+          <TaskRow
+            key={t.id}
+            t={t}
+            meta={statusMap[t.id]}
+            onMark={onMark}
+            onNote={onNote}
+            saving={saving}
+            readOnly={readOnly}
+          />
+        ))}
       </div>
+    </div>
+  );
+}
+
+function TaskRow({ t, meta, onMark, onNote, saving, readOnly }) {
+  const status = meta?.status || DEFAULT_STATUS;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(meta?.note || '');
+  const [savingNote, setSavingNote] = useState(false);
+
+  async function save() {
+    setSavingNote(true);
+    try {
+      await onNote(t.id, draft.trim());
+      setEditing(false);
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
+  return (
+    <div className="p-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-500">
+              {t.id}
+            </span>
+            {t.priority && (
+              <span
+                className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                  PRIORITY_CLASS[t.priority] || 'bg-gray-200 text-gray-600'
+                }`}
+              >
+                {t.priority}
+              </span>
+            )}
+            {t.type && <span className="text-xs text-gray-400">{t.type}</span>}
+          </div>
+          <div className="mt-1 text-sm font-medium text-gray-800">{t.feature}</div>
+          {t.verify && <div className="mt-0.5 text-xs text-gray-500">{t.verify}</div>}
+          {meta?.updatedBy && (
+            <div className={`mt-1 text-xs ${STATUS_BY[status]?.text || 'text-gray-400'}`}>
+              {STATUS_BY[status]?.label} · {meta.updatedBy}
+              {meta.updatedAt ? ` · ${timeAgo(meta.updatedAt)}` : ''}
+            </div>
+          )}
+        </div>
+
+        {/* Status: read-only badge for shared view, buttons otherwise */}
+        {readOnly ? (
+          <div className="shrink-0">
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+                STATUS_BY[status]?.chip || ''
+              }`}
+            >
+              <span className={`h-2 w-2 rounded-full ${STATUS_BY[status]?.dot || ''}`} />
+              {STATUS_BY[status]?.label}
+            </span>
+          </div>
+        ) : (
+          <div className="flex shrink-0 gap-1 rounded-lg border border-ink-600 bg-gray-50 p-1">
+            {STATUSES.map((s) => (
+              <button
+                key={s.value}
+                onClick={() => onMark(t.id, s.value)}
+                disabled={saving === t.id}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+                  status === s.value ? s.active : 'text-gray-500 hover:bg-white'
+                }`}
+                title={`Mark as ${s.label}`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Notes — reason a test failed, repro steps, blockers, context. Hidden on
+          the public read-only share to keep internal detail private. */}
+      {!readOnly &&
+        (editing ? (
+          <div className="mt-2 space-y-2">
+            <textarea
+              className="input text-sm"
+              rows={3}
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Why it failed, steps to reproduce, blockers, or any context…"
+            />
+            <div className="flex gap-2">
+              <button onClick={save} disabled={savingNote} className="btn-primary py-1 px-3 text-xs">
+                {savingNote ? 'Saving…' : 'Save note'}
+              </button>
+              <button
+                onClick={() => {
+                  setDraft(meta?.note || '');
+                  setEditing(false);
+                }}
+                className="btn-ghost py-1 px-3 text-xs"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : meta?.note ? (
+          <div className="mt-2 rounded-lg border border-ink-600 bg-gray-50 px-3 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                Note{meta.noteBy ? ` · ${meta.noteBy}` : ''}
+                {meta.noteAt ? ` · ${timeAgo(meta.noteAt)}` : ''}
+              </div>
+              <button
+                onClick={() => {
+                  setDraft(meta.note || '');
+                  setEditing(true);
+                }}
+                className="text-xs text-gray-400 hover:text-gray-700"
+              >
+                Edit
+              </button>
+            </div>
+            <p className="mt-0.5 whitespace-pre-wrap text-sm text-gray-700">{meta.note}</p>
+          </div>
+        ) : (
+          <button
+            onClick={() => {
+              setDraft('');
+              setEditing(true);
+            }}
+            className="mt-1.5 text-xs text-gray-400 hover:text-brand"
+          >
+            + Add note
+          </button>
+        ))}
     </div>
   );
 }

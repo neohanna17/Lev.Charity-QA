@@ -371,4 +371,18 @@ export function setQaStatus(taskId, status, user) {
   );
 }
 
+// A free-text note on a plan task (reason a test failed, repro steps, blockers,
+// context). Merged into the same qaStatus doc so it sits alongside the status.
+export function setQaNote(taskId, note, user) {
+  return setDoc(
+    doc(db, 'qaStatus', taskId),
+    {
+      note: note || '',
+      noteBy: user?.displayName || user?.email || null,
+      noteAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
 export { doc, setDoc };
