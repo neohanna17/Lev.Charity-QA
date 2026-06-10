@@ -386,10 +386,19 @@ function TaskRow({ t, meta, onMark, onNote, saving, readOnly }) {
         )}
       </div>
 
-      {/* Notes — reason a test failed, repro steps, blockers, context. Hidden on
-          the public read-only share to keep internal detail private. */}
-      {!readOnly &&
-        (editing ? (
+      {/* Notes — reason a test failed, repro steps, blockers, context. Shown
+          read-only on the public share; editable for members. */}
+      {readOnly
+        ? meta?.note && (
+            <div className="mt-2 rounded-lg border border-ink-600 bg-gray-50 px-3 py-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                Note{meta.noteBy ? ` · ${meta.noteBy}` : ''}
+                {meta.noteAt ? ` · ${timeAgo(meta.noteAt)}` : ''}
+              </div>
+              <p className="mt-0.5 whitespace-pre-wrap text-sm text-gray-700">{meta.note}</p>
+            </div>
+          )
+        : editing ? (
           <div className="mt-2 space-y-2">
             <textarea
               className="input text-sm"
@@ -443,7 +452,7 @@ function TaskRow({ t, meta, onMark, onNote, saving, readOnly }) {
           >
             + Add note
           </button>
-        ))}
+        )}
     </div>
   );
 }
