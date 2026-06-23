@@ -87,6 +87,13 @@ service cloud.firestore {
       allow create, update, delete: if isMember();
     }
 
+    // QA Plan module title overrides (members renaming a module), keyed by the
+    // module code. Public read so renamed titles show on the shared link.
+    match /qaModules/{code} {
+      allow read: if true;
+      allow create, update, delete: if isMember();
+    }
+
     // Presence = "who's online" heartbeats. Anyone signed in as a member can
     // see who else is active, but you may only write/clear your own doc.
     match /presence/{uid} {
