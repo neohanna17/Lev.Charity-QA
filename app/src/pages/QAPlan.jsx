@@ -151,15 +151,21 @@ export default function QAPlan({ readOnly = false }) {
   const groupByCode = useMemo(() => Object.fromEntries(groups.map((g) => [g.code, g])), [groups]);
 
   // Bucket every task under its effective module code (honours per-task moves).
+  // Custom (member-added) checks come FIRST, newest-added at the top; the
+  // built-in plan checks follow in their original order. A just-added check has
+  // no server timestamp yet, so treat that as "now" to keep it at the top.
   const tasksByModule = useMemo(() => {
+    const ms = (t) =>
+      t?.toMillis ? t.toMillis() : t?.seconds ? t.seconds * 1000 : Number.MAX_SAFE_INTEGER;
     const map = {};
+    const newestFirst = [...customTasks].sort((a, b) => ms(b.createdAt) - ms(a.createdAt));
+    for (const t of newestFirst) (map[t.moduleCode] ||= []).push(t);
     for (const m of builtins) {
       for (const t of m.tasks) {
         const eff = statusMap[t.id]?.moduleCode || m.code;
         (map[eff] ||= []).push(t);
       }
     }
-    for (const t of customTasks) (map[t.moduleCode] ||= []).push(t);
     return map;
   }, [builtins, statusMap, customTasks]);
 
