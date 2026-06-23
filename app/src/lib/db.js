@@ -397,8 +397,54 @@ export async function createQaTask(data) {
   return ref.id;
 }
 
+export async function updateQaTask(id, data) {
+  await updateDoc(doc(db, 'qaTasks', id), data);
+}
+
 export async function deleteQaTask(id) {
   await deleteDoc(doc(db, 'qaTasks', id));
+}
+
+// Move a BUILT-IN plan task to a different module by storing an override on its
+// qaStatus doc. (Custom tasks are moved by updating their own moduleCode.)
+// A null moduleCode clears the override (back to the task's native module).
+export function setQaTaskModule(taskId, moduleCode, user) {
+  return setDoc(
+    doc(db, 'qaStatus', taskId),
+    {
+      moduleCode: moduleCode || null,
+      updatedAt: serverTimestamp(),
+      updatedBy: user?.displayName || user?.email || null,
+    },
+    { merge: true },
+  );
+}
+
+// ---- QA Plan module title overrides ----
+// The built-in module titles (qaPlan.js) are static. Members can rename a
+// module; the override is stored here, keyed by the module's code.
+export function watchQaModules(cb) {
+  return onSnapshot(
+    collection(db, 'qaModules'),
+    (snap) => {
+      const map = {};
+      snap.docs.forEach((d) => (map[d.id] = d.data()));
+      cb(map);
+    },
+    () => cb({}),
+  );
+}
+
+export function setQaModuleTitle(code, title, user) {
+  return setDoc(
+    doc(db, 'qaModules', code),
+    {
+      title: title || '',
+      updatedBy: user?.displayName || user?.email || null,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
 }
 
 // A free-text note on a plan task (reason a test failed, repro steps, blockers,

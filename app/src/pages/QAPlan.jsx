@@ -6,7 +6,11 @@ import {
   setQaNote,
   watchQaTasks,
   createQaTask,
+  updateQaTask,
   deleteQaTask,
+  setQaTaskModule,
+  watchQaModules,
+  setQaModuleTitle,
 } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { timeAgo } from '../lib/format';
@@ -98,31 +102,50 @@ export default function QAPlan({ readOnly = false }) {
   const { user } = useAuth();
   const [statusMap, setStatusMap] = useState({});
   const [customTasks, setCustomTasks] = useState([]); // member-added checks
+  const [moduleTitles, setModuleTitles] = useState({}); // code -> { title } overrides
   const [selected, setSelected] = useState(null); // module code
   const [filter, setFilter] = useState('all'); // detail-view status filter
   const [saving, setSaving] = useState(null); // task id currently saving
 
   useEffect(() => watchQaStatus(setStatusMap), []);
   useEffect(() => watchQaTasks(setCustomTasks), []);
+  useEffect(() => watchQaModules(setModuleTitles), []);
 
-  // Custom checks grouped by the module they were added to.
-  const customByModule = useMemo(() => {
-    const m = {};
-    for (const t of customTasks) (m[t.moduleCode] ||= []).push(t);
-    return m;
-  }, [customTasks]);
+  // Effective module title (override if a member renamed it, else the built-in).
+  const titleOf = (m) => moduleTitles[m.code]?.title || m.title;
 
-  // A module's effective task list = built-in tasks + any custom checks added to it.
-  const tasksFor = (m) => [...m.tasks, ...(customByModule[m.code] || [])];
+  // Group every task under its EFFECTIVE module: built-in tasks honour a
+  // per-task module override (statusMap[id].moduleCode), custom tasks use their
+  // own moduleCode. So renames + moves both flow through here.
+  const tasksByModule = useMemo(() => {
+    const map = {};
+    QA_PLAN.forEach((m) => (map[m.code] = []));
+    for (const m of QA_PLAN) {
+      for (const t of m.tasks) {
+        const eff = statusMap[t.id]?.moduleCode || m.code;
+        (map[eff] ||= []).push(t);
+      }
+    }
+    for (const t of customTasks) (map[t.moduleCode] ||= []).push(t);
+    return map;
+  }, [statusMap, customTasks]);
+
+  const tasksFor = (m) => tasksByModule[m.code] || [];
 
   const overall = useMemo(
-    () => tally(QA_PLAN.flatMap(tasksFor), statusMap),
-    [statusMap, customByModule],
+    () => tally([...QA_PLAN.flatMap((m) => m.tasks), ...customTasks], statusMap),
+    [statusMap, customTasks],
   );
 
   const moduleStats = useMemo(
-    () => Object.fromEntries(QA_PLAN.map((m) => [m.code, tally(tasksFor(m), statusMap)])),
-    [statusMap, customByModule],
+    () => Object.fromEntries(QA_PLAN.map((m) => [m.code, tally(tasksByModule[m.code] || [], statusMap)])),
+    [statusMap, tasksByModule],
+  );
+
+  // Module options for the "move to" dropdown (with any renamed titles).
+  const moduleOptions = useMemo(
+    () => QA_PLAN.map((m) => ({ code: m.code, title: moduleTitles[m.code]?.title || m.title })),
+    [moduleTitles],
   );
 
   async function saveNote(taskId, note) {
@@ -152,8 +175,22 @@ export default function QAPlan({ readOnly = false }) {
     }
   }
 
+  // Move a check to another module: custom tasks update their own moduleCode;
+  // built-in tasks store an override on their qaStatus doc.
+  async function moveTask(task, toCode) {
+    if (!toCode) return;
+    if (task.custom) await updateQaTask(task.id, { moduleCode: toCode });
+    else await setQaTaskModule(task.id, toCode, user);
+  }
+
+  async function renameModule(code, title) {
+    await setQaModuleTitle(code, title, user);
+  }
+
   const currentBase = selected ? QA_PLAN.find((m) => m.code === selected) : null;
-  const current = currentBase ? { ...currentBase, tasks: tasksFor(currentBase) } : null;
+  const current = currentBase
+    ? { ...currentBase, title: titleOf(currentBase), tasks: tasksFor(currentBase) }
+    : null;
 
   return (
     <div>
@@ -223,7 +260,7 @@ export default function QAPlan({ readOnly = false }) {
                     {m.code}
                   </span>
                   <span className="flex-1 text-sm font-medium text-gray-500 group-hover:text-gray-800">
-                    {m.title}
+                    {titleOf(m)}
                   </span>
                 </div>
                 {/* Card body */}
@@ -255,6 +292,9 @@ export default function QAPlan({ readOnly = false }) {
           onNote={saveNote}
           onAddTask={addTask}
           onDeleteTask={removeTask}
+          onMove={moveTask}
+          onRename={renameModule}
+          moduleOptions={moduleOptions}
           saving={saving}
           readOnly={readOnly}
         />
@@ -284,10 +324,15 @@ function ModuleDetail({
   onNote,
   onAddTask,
   onDeleteTask,
+  onMove,
+  onRename,
+  moduleOptions,
   saving,
   readOnly,
 }) {
   const [adding, setAdding] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(module.title);
   const tasks = module.tasks.filter((t) => {
     if (filter === 'all') return true;
     return (statusMap[t.id]?.status || DEFAULT_STATUS) === filter;
@@ -312,7 +357,51 @@ function ModuleDetail({
           <span className="rounded-md bg-brand/10 px-1.5 py-0.5 text-sm font-bold text-brand">
             {module.code}
           </span>
-          <h2 className="flex-1 text-lg font-semibold text-gray-700">{module.title}</h2>
+          {renaming ? (
+            <div className="flex flex-1 flex-wrap items-center gap-2">
+              <input
+                className="input flex-1 py-1 text-base font-semibold"
+                autoFocus
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && titleDraft.trim()) {
+                    onRename(module.code, titleDraft.trim());
+                    setRenaming(false);
+                  }
+                  if (e.key === 'Escape') setRenaming(false);
+                }}
+              />
+              <button
+                onClick={() => {
+                  if (titleDraft.trim()) onRename(module.code, titleDraft.trim());
+                  setRenaming(false);
+                }}
+                className="btn-primary py-1 px-3 text-xs"
+              >
+                Save
+              </button>
+              <button onClick={() => setRenaming(false)} className="btn-ghost py-1 px-3 text-xs">
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <>
+              <h2 className="flex-1 text-lg font-semibold text-gray-700">{module.title}</h2>
+              {!readOnly && (
+                <button
+                  onClick={() => {
+                    setTitleDraft(module.title);
+                    setRenaming(true);
+                  }}
+                  className="shrink-0 rounded-md px-2 py-1 text-xs text-gray-400 hover:bg-ink-700 hover:text-gray-800"
+                  title="Rename this module"
+                >
+                  ✎ Rename
+                </button>
+              )}
+            </>
+          )}
         </div>
         <div className="mt-3">
           <ProgressBar counts={counts} height="h-3" />
@@ -370,6 +459,9 @@ function ModuleDetail({
             onMark={onMark}
             onNote={onNote}
             onDelete={onDeleteTask}
+            onMove={onMove}
+            moduleOptions={moduleOptions}
+            currentCode={module.code}
             saving={saving}
             readOnly={readOnly}
           />
@@ -458,7 +550,7 @@ function AddCheckForm({ moduleTitle, onSave, onCancel }) {
   );
 }
 
-function TaskRow({ t, meta, onMark, onNote, onDelete, saving, readOnly }) {
+function TaskRow({ t, meta, onMark, onNote, onDelete, onMove, moduleOptions, currentCode, saving, readOnly }) {
   const status = meta?.status || DEFAULT_STATUS;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(meta?.note || '');
@@ -512,6 +604,25 @@ function TaskRow({ t, meta, onMark, onNote, onDelete, saving, readOnly }) {
               {STATUS_BY[status]?.label} · {meta.updatedBy}
               {meta.updatedAt ? ` · ${timeAgo(meta.updatedAt)}` : ''}
             </div>
+          )}
+          {!readOnly && onMove && moduleOptions && (
+            <label className="mt-2 inline-flex items-center gap-1.5 text-xs text-gray-400">
+              Move to
+              <select
+                value={currentCode}
+                onChange={(e) => {
+                  if (e.target.value !== currentCode) onMove(t, e.target.value);
+                }}
+                className="rounded-md border border-ink-600 bg-white px-1.5 py-1 text-xs text-gray-700"
+                title="Move this check to another module"
+              >
+                {moduleOptions.map((m) => (
+                  <option key={m.code} value={m.code}>
+                    {m.code} · {m.title}
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
         </div>
 
