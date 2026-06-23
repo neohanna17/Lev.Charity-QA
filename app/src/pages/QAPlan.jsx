@@ -220,40 +220,66 @@ export default function QAPlan({ readOnly = false }) {
   }
 
   async function renameModule(code, title) {
-    await setQaModuleTitle(code, title, user);
+    try {
+      await setQaModuleTitle(code, title, user);
+    } catch (e) {
+      alert(`Could not rename.\n\n${explainError(e)}`);
+    }
+  }
+
+  // Surface write failures (the common one is unpublished Firestore rules) so
+  // they're never silent.
+  function explainError(e) {
+    const msg = e?.message || String(e);
+    if (/permission|insufficient|PERMISSION_DENIED/i.test(msg)) {
+      return 'Permission denied — the QA Plan Firestore rules need to be published (Firebase Console → Firestore → Rules → Publish).';
+    }
+    return msg;
   }
 
   async function addModule(title) {
-    await createQaModule({ title, kind: tab, createdBy: user?.displayName || user?.email || null });
-    setAdding(false);
+    try {
+      await createQaModule({ title, kind: tab, createdBy: user?.displayName || user?.email || null });
+      setAdding(false);
+    } catch (e) {
+      alert(`Could not create this ${tab === 'addon' ? 'core add-on' : 'module'}.\n\n${explainError(e)}`);
+    }
   }
 
   // Delete a custom module/add-on (only when empty), or hide/restore a built-in.
   async function deleteModule(group) {
     const count = (tasksByModule[group.code] || []).length;
     const label = group.kind === 'addon' ? 'core add-on' : 'module';
-    if (group.custom) {
-      if (count > 0) {
-        alert(`This ${label} still has ${count} check(s). Move or delete them first, then delete it.`);
-        return;
-      }
-      if (confirm(`Delete the “${group.title}” ${label}? This can’t be undone.`)) {
-        await deleteQaModule(group.code);
+    try {
+      if (group.custom) {
+        if (count > 0) {
+          alert(`This ${label} still has ${count} check(s). Move or delete them first, then delete it.`);
+          return;
+        }
+        if (confirm(`Delete the “${group.title}” ${label}? This can’t be undone.`)) {
+          await deleteQaModule(group.code);
+          setSelected(null);
+        }
+      } else if (
+        confirm(
+          `Remove the “${group.title}” ${label} from the plan?` +
+            (count ? ` Its ${count} check(s) are hidden but kept — you can restore it from “Show removed”.` : ''),
+        )
+      ) {
+        await setQaModuleHidden(group.code, true, user);
         setSelected(null);
       }
-    } else if (
-      confirm(
-        `Remove the “${group.title}” ${label} from the plan?` +
-          (count ? ` Its ${count} check(s) are hidden but kept — you can restore it from “Show removed”.` : ''),
-      )
-    ) {
-      await setQaModuleHidden(group.code, true, user);
-      setSelected(null);
+    } catch (e) {
+      alert(`Could not update this ${label}.\n\n${explainError(e)}`);
     }
   }
 
   async function restoreModule(code) {
-    await setQaModuleHidden(code, false, user);
+    try {
+      await setQaModuleHidden(code, false, user);
+    } catch (e) {
+      alert(`Could not restore.\n\n${explainError(e)}`);
+    }
   }
 
   const current =
