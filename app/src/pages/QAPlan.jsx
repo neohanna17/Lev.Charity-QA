@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { QA_PLAN, CORE_ADDONS } from '../lib/qaPlan';
 import {
   watchQaStatus,
@@ -752,6 +752,107 @@ function AddCheckForm({ moduleTitle, onSave, onCancel }) {
   );
 }
 
+// A searchable white dropdown for moving a check to another module / add-on —
+// replaces the native <select> (whose OS menu doesn't match the UI). Type to
+// filter; results stay grouped by Modules / Core Add-ons.
+function MoveDropdown({ value, options, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const ref = useRef(null);
+  const current = options.find((o) => o.code === value);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  const ql = q.trim().toLowerCase();
+  const matches = options.filter((o) => !ql || o.title.toLowerCase().includes(ql));
+  const modules = matches.filter((o) => o.kind !== 'addon');
+  const addons = matches.filter((o) => o.kind === 'addon');
+
+  const pick = (code) => {
+    if (code !== value) onChange(code);
+    setOpen(false);
+    setQ('');
+  };
+
+  const Item = ({ o }) => (
+    <button
+      type="button"
+      onClick={() => pick(o.code)}
+      className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs hover:bg-ink-700/60 ${
+        o.code === value ? 'font-medium text-brand' : 'text-gray-700'
+      }`}
+    >
+      <span className="truncate">{o.title}</span>
+      {o.code === value && <span className="shrink-0 text-brand">✓</span>}
+    </button>
+  );
+
+  return (
+    <div ref={ref} className="relative inline-block text-left">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1.5 rounded-md border border-ink-600 bg-white px-2.5 py-1 text-xs text-gray-600 hover:border-brand/40 hover:text-gray-900"
+        title="Move this check to another module or core add-on"
+      >
+        <span className="text-gray-400">Move to</span>
+        <span className="max-w-[160px] truncate font-medium text-gray-800">
+          {current?.title || 'choose…'}
+        </span>
+        <span className="text-gray-400">▾</span>
+      </button>
+      {open && (
+        <div className="absolute left-0 z-30 mt-1 w-64 overflow-hidden rounded-lg border border-ink-600 bg-white shadow-xl">
+          <div className="border-b border-ink-600 p-2">
+            <input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setOpen(false);
+                if (e.key === 'Enter') {
+                  const first = [...modules, ...addons][0];
+                  if (first) pick(first.code);
+                }
+              }}
+              placeholder="Search modules & add-ons…"
+              className="w-full rounded-md border border-ink-500 px-2 py-1.5 text-xs text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30"
+            />
+          </div>
+          <div className="max-h-56 overflow-y-auto py-1">
+            {modules.length > 0 && (
+              <div className="px-3 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                Modules
+              </div>
+            )}
+            {modules.map((o) => (
+              <Item key={o.code} o={o} />
+            ))}
+            {addons.length > 0 && (
+              <div className="px-3 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                Core Add-ons
+              </div>
+            )}
+            {addons.map((o) => (
+              <Item key={o.code} o={o} />
+            ))}
+            {matches.length === 0 && (
+              <div className="px-3 py-4 text-center text-xs text-gray-400">No matches</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TaskRow({ t, meta, onMark, onNote, onDelete, onMove, moduleOptions, currentCode, saving, readOnly }) {
   const status = meta?.status || DEFAULT_STATUS;
   const [editing, setEditing] = useState(false);
@@ -808,36 +909,13 @@ function TaskRow({ t, meta, onMark, onNote, onDelete, onMove, moduleOptions, cur
             </div>
           )}
           {!readOnly && onMove && moduleOptions && (
-            <label className="mt-2 inline-flex items-center gap-1.5 text-xs text-gray-400">
-              Move to
-              <select
+            <div className="mt-2">
+              <MoveDropdown
                 value={currentCode}
-                onChange={(e) => {
-                  if (e.target.value !== currentCode) onMove(t, e.target.value);
-                }}
-                className="rounded-md border border-ink-600 bg-white px-1.5 py-1 text-xs text-gray-700"
-                title="Move this check to another module or core add-on"
-              >
-                <optgroup label="Modules">
-                  {moduleOptions
-                    .filter((m) => m.kind !== 'addon')
-                    .map((m) => (
-                      <option key={m.code} value={m.code}>
-                        {m.title}
-                      </option>
-                    ))}
-                </optgroup>
-                <optgroup label="Core Add-ons">
-                  {moduleOptions
-                    .filter((m) => m.kind === 'addon')
-                    .map((m) => (
-                      <option key={m.code} value={m.code}>
-                        {m.title}
-                      </option>
-                    ))}
-                </optgroup>
-              </select>
-            </label>
+                options={moduleOptions}
+                onChange={(code) => onMove(t, code)}
+              />
+            </div>
           )}
         </div>
 
