@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { QA_PLAN } from '../lib/qaPlan';
+import { QA_PLAN, CORE_ADDONS } from '../lib/qaPlan';
 import {
   watchQaStatus,
   setQaStatus,
@@ -11,6 +11,9 @@ import {
   setQaTaskModule,
   watchQaModules,
   setQaModuleTitle,
+  createQaModule,
+  deleteQaModule,
+  setQaModuleHidden,
 } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { timeAgo } from '../lib/format';
@@ -102,25 +105,55 @@ export default function QAPlan({ readOnly = false }) {
   const { user } = useAuth();
   const [statusMap, setStatusMap] = useState({});
   const [customTasks, setCustomTasks] = useState([]); // member-added checks
-  const [moduleTitles, setModuleTitles] = useState({}); // code -> { title } overrides
+  const [modulesMap, setModulesMap] = useState({}); // qaModules: built-in overrides + custom modules
+  const [tab, setTab] = useState('module'); // 'module' (Modules) | 'addon' (Core Add-ons)
   const [selected, setSelected] = useState(null); // module code
   const [filter, setFilter] = useState('all'); // detail-view status filter
   const [saving, setSaving] = useState(null); // task id currently saving
+  const [showRemoved, setShowRemoved] = useState(false);
+  const [adding, setAdding] = useState(false); // module add-form open
 
   useEffect(() => watchQaStatus(setStatusMap), []);
   useEffect(() => watchQaTasks(setCustomTasks), []);
-  useEffect(() => watchQaModules(setModuleTitles), []);
+  useEffect(() => watchQaModules(setModulesMap), []);
 
-  // Effective module title (override if a member renamed it, else the built-in).
-  const titleOf = (m) => moduleTitles[m.code]?.title || m.title;
+  // Built-in groups: the static plan (Modules) + the static Core Add-ons.
+  const builtins = useMemo(
+    () => [
+      ...QA_PLAN.map((m) => ({ ...m, kind: 'module', custom: false })),
+      ...CORE_ADDONS.map((m) => ({ ...m, kind: 'addon', custom: false })),
+    ],
+    [],
+  );
 
-  // Group every task under its EFFECTIVE module: built-in tasks honour a
-  // per-task module override (statusMap[id].moduleCode), custom tasks use their
-  // own moduleCode. So renames + moves both flow through here.
+  // Effective groups: built-ins with title/hidden overrides applied, plus any
+  // custom modules/add-ons members created.
+  const groups = useMemo(() => {
+    const list = builtins.map((m) => {
+      const ov = modulesMap[m.code] || {};
+      return { ...m, title: ov.title || m.title, hidden: !!ov.hidden };
+    });
+    for (const [id, data] of Object.entries(modulesMap)) {
+      if (!data.custom) continue;
+      list.push({
+        code: id,
+        title: data.title || 'Untitled module',
+        kind: data.kind === 'addon' ? 'addon' : 'module',
+        tasks: [],
+        custom: true,
+        hidden: !!data.hidden,
+        createdBy: data.createdBy || null,
+      });
+    }
+    return list;
+  }, [builtins, modulesMap]);
+
+  const groupByCode = useMemo(() => Object.fromEntries(groups.map((g) => [g.code, g])), [groups]);
+
+  // Bucket every task under its effective module code (honours per-task moves).
   const tasksByModule = useMemo(() => {
     const map = {};
-    QA_PLAN.forEach((m) => (map[m.code] = []));
-    for (const m of QA_PLAN) {
+    for (const m of builtins) {
       for (const t of m.tasks) {
         const eff = statusMap[t.id]?.moduleCode || m.code;
         (map[eff] ||= []).push(t);
@@ -128,24 +161,33 @@ export default function QAPlan({ readOnly = false }) {
     }
     for (const t of customTasks) (map[t.moduleCode] ||= []).push(t);
     return map;
-  }, [statusMap, customTasks]);
+  }, [builtins, statusMap, customTasks]);
 
-  const tasksFor = (m) => tasksByModule[m.code] || [];
+  // Groups for the active tab (hidden excluded unless "show removed" is on).
+  const visibleGroups = groups.filter((g) => g.kind === tab && (!g.hidden || showRemoved));
+  const removedCount = groups.filter((g) => g.kind === tab && g.hidden).length;
+  const tabCounts = {
+    module: groups.filter((g) => g.kind === 'module' && !g.hidden).length,
+    addon: groups.filter((g) => g.kind === 'addon' && !g.hidden).length,
+  };
 
-  const overall = useMemo(
-    () => tally([...QA_PLAN.flatMap((m) => m.tasks), ...customTasks], statusMap),
-    [statusMap, customTasks],
-  );
+  // Per-tab rollup of statuses.
+  const overall = useMemo(() => {
+    const tabTasks = groups
+      .filter((g) => g.kind === tab && !g.hidden)
+      .flatMap((g) => tasksByModule[g.code] || []);
+    return tally(tabTasks, statusMap);
+  }, [groups, tab, tasksByModule, statusMap]);
 
   const moduleStats = useMemo(
-    () => Object.fromEntries(QA_PLAN.map((m) => [m.code, tally(tasksByModule[m.code] || [], statusMap)])),
-    [statusMap, tasksByModule],
+    () => Object.fromEntries(groups.map((g) => [g.code, tally(tasksByModule[g.code] || [], statusMap)])),
+    [groups, tasksByModule, statusMap],
   );
 
-  // Module options for the "move to" dropdown (with any renamed titles).
+  // Move-dropdown options: every non-hidden group, both tabs (grouped by kind).
   const moduleOptions = useMemo(
-    () => QA_PLAN.map((m) => ({ code: m.code, title: moduleTitles[m.code]?.title || m.title })),
-    [moduleTitles],
+    () => groups.filter((g) => !g.hidden).map((g) => ({ code: g.code, title: g.title, kind: g.kind })),
+    [groups],
   );
 
   async function saveNote(taskId, note) {
@@ -162,11 +204,7 @@ export default function QAPlan({ readOnly = false }) {
   }
 
   async function addTask(moduleCode, data) {
-    await createQaTask({
-      moduleCode,
-      ...data,
-      createdBy: user?.displayName || user?.email || null,
-    });
+    await createQaTask({ moduleCode, ...data, createdBy: user?.displayName || user?.email || null });
   }
 
   async function removeTask(taskId) {
@@ -175,8 +213,6 @@ export default function QAPlan({ readOnly = false }) {
     }
   }
 
-  // Move a check to another module: custom tasks update their own moduleCode;
-  // built-in tasks store an override on their qaStatus doc.
   async function moveTask(task, toCode) {
     if (!toCode) return;
     if (task.custom) await updateQaTask(task.id, { moduleCode: toCode });
@@ -187,10 +223,43 @@ export default function QAPlan({ readOnly = false }) {
     await setQaModuleTitle(code, title, user);
   }
 
-  const currentBase = selected ? QA_PLAN.find((m) => m.code === selected) : null;
-  const current = currentBase
-    ? { ...currentBase, title: titleOf(currentBase), tasks: tasksFor(currentBase) }
-    : null;
+  async function addModule(title) {
+    await createQaModule({ title, kind: tab, createdBy: user?.displayName || user?.email || null });
+    setAdding(false);
+  }
+
+  // Delete a custom module/add-on (only when empty), or hide/restore a built-in.
+  async function deleteModule(group) {
+    const count = (tasksByModule[group.code] || []).length;
+    const label = group.kind === 'addon' ? 'core add-on' : 'module';
+    if (group.custom) {
+      if (count > 0) {
+        alert(`This ${label} still has ${count} check(s). Move or delete them first, then delete it.`);
+        return;
+      }
+      if (confirm(`Delete the “${group.title}” ${label}? This can’t be undone.`)) {
+        await deleteQaModule(group.code);
+        setSelected(null);
+      }
+    } else if (
+      confirm(
+        `Remove the “${group.title}” ${label} from the plan?` +
+          (count ? ` Its ${count} check(s) are hidden but kept — you can restore it from “Show removed”.` : ''),
+      )
+    ) {
+      await setQaModuleHidden(group.code, true, user);
+      setSelected(null);
+    }
+  }
+
+  async function restoreModule(code) {
+    await setQaModuleHidden(code, false, user);
+  }
+
+  const current =
+    selected && groupByCode[selected]
+      ? { ...groupByCode[selected], tasks: tasksByModule[selected] || [] }
+      : null;
 
   return (
     <div>
@@ -207,23 +276,60 @@ export default function QAPlan({ readOnly = false }) {
             </span>
           </div>
           <p className="text-sm text-gray-500">
-            LevCharity 2.0 manual test plan — {QA_PLAN.length} modules · {overall.total} tasks.
+            LevCharity 2.0 manual test plan.
             {readOnly
               ? ' Live progress snapshot — updates appear automatically.'
-              : ' Mark each as '}
+              : ' Organise checks across Modules and Core Add-ons; mark each as '}
             {!readOnly && (
               <>
-                <b>In testing</b>, <b>Failed</b>, <b>Passed</b>, or <b>N/A</b> (obsolete).
+                <b>In testing</b>, <b>Failed</b>, <b>Passed</b>, or <b>N/A</b>.
               </>
             )}
           </p>
         </div>
       </div>
 
-      {/* Overall progress */}
+      {/* Tabs: Modules / Core Add-ons */}
+      <div className="mt-5 flex flex-wrap items-center gap-2">
+        <div className="flex gap-1 rounded-lg border border-ink-600 bg-white p-1">
+          {[
+            { value: 'module', label: 'Modules' },
+            { value: 'addon', label: 'Core Add-ons' },
+          ].map((tb) => (
+            <button
+              key={tb.value}
+              onClick={() => {
+                setTab(tb.value);
+                setSelected(null);
+                setShowRemoved(false);
+                setAdding(false);
+              }}
+              className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                tab === tb.value ? 'bg-brand/10 text-brand' : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              {tb.label}
+              <span className="ml-1.5 text-xs text-gray-400">{tabCounts[tb.value]}</span>
+            </button>
+          ))}
+        </div>
+        {!readOnly && !current && !adding && (
+          <button onClick={() => setAdding(true)} className="btn-primary ml-auto py-1.5 px-3 text-xs">
+            + Add {tab === 'addon' ? 'core add-on' : 'module'}
+          </button>
+        )}
+      </div>
+
+      {!readOnly && adding && !current && (
+        <AddModuleForm kind={tab} onCancel={() => setAdding(false)} onSave={addModule} />
+      )}
+
+      {/* Overall progress for the active tab */}
       <div className="card mt-4 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-gray-700">Overall progress</h2>
+          <h2 className="text-sm font-semibold text-gray-700">
+            {tab === 'addon' ? 'Core Add-ons' : 'Modules'} · progress
+          </h2>
           <span className="text-xs text-gray-500">
             {overall.passed + overall.bugs_found} of {applicable(overall)} tested
           </span>
@@ -236,49 +342,76 @@ export default function QAPlan({ readOnly = false }) {
           <Stat label="Fail rate" value={`${pct(overall.bugs_found, applicable(overall))}%`} sub={`${overall.bugs_found} failed`} tone="text-red-600" />
           <Stat label="In testing" value={`${overall.in_testing}`} sub="not yet resolved" tone="text-gray-600" />
           <Stat label="N/A" value={`${overall.na}`} sub="obsolete / skipped" tone="text-slate-500" />
-          <Stat label="Total tasks" value={`${overall.total}`} sub={`${QA_PLAN.length} modules`} tone="text-gray-800" />
+          <Stat label="Total tasks" value={`${overall.total}`} sub={`${visibleGroups.filter((g) => !g.hidden).length} ${tab === 'addon' ? 'add-ons' : 'modules'}`} tone="text-gray-800" />
         </div>
       </div>
 
       {!current ? (
-        /* ---------- Module cards ---------- */
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {QA_PLAN.map((m) => {
-            const c = moduleStats[m.code];
-            return (
-              <button
-                key={m.code}
-                onClick={() => {
-                  setSelected(m.code);
-                  setFilter('all');
-                }}
-                className="card group overflow-hidden p-0 text-left transition hover:border-brand/40 hover:shadow-sm"
-              >
-                {/* Card header — matches the sidebar menu look */}
-                <div className="flex items-center gap-2 border-b border-ink-600 bg-gray-50/60 px-4 py-2.5">
-                  <span className="rounded-md bg-brand/10 px-1.5 py-0.5 text-xs font-semibold text-brand">
-                    {m.code}
-                  </span>
-                  <span className="flex-1 text-sm font-medium text-gray-500 group-hover:text-gray-800">
-                    {titleOf(m)}
-                  </span>
-                </div>
-                {/* Card body */}
-                <div className="px-4 py-3">
-                  <ProgressBar counts={c} />
-                  <div className="mt-2 flex items-center justify-between text-xs">
-                    <span className="text-gray-400">{c.total} tasks</span>
-                    <span className="flex items-center gap-2">
-                      <span className="text-green-600">{pct(c.passed, applicable(c))}% pass</span>
-                      <span className="text-red-600">{pct(c.bugs_found, applicable(c))}% fail</span>
-                      {c.na > 0 && <span className="text-slate-500">{c.na} N/A</span>}
+        /* ---------- Module / add-on cards ---------- */
+        <>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {visibleGroups.map((g) => {
+              const c = moduleStats[g.code];
+              return (
+                <button
+                  key={g.code}
+                  onClick={() => {
+                    setSelected(g.code);
+                    setFilter('all');
+                  }}
+                  className={`card group overflow-hidden p-0 text-left transition hover:border-brand/40 hover:shadow-sm ${
+                    g.hidden ? 'opacity-60' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-2 border-b border-ink-600 bg-gray-50/60 px-4 py-2.5">
+                    {g.custom ? (
+                      <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-xs font-semibold text-emerald-700">
+                        custom
+                      </span>
+                    ) : (
+                      <span className="rounded-md bg-brand/10 px-1.5 py-0.5 text-xs font-semibold text-brand">
+                        {g.code}
+                      </span>
+                    )}
+                    <span className="flex-1 text-sm font-medium text-gray-500 group-hover:text-gray-800">
+                      {g.title}
                     </span>
+                    {g.hidden && (
+                      <span className="rounded-full bg-ink-700 px-2 py-0.5 text-[10px] font-semibold uppercase text-gray-500">
+                        removed
+                      </span>
+                    )}
                   </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+                  <div className="px-4 py-3">
+                    <ProgressBar counts={c} />
+                    <div className="mt-2 flex items-center justify-between text-xs">
+                      <span className="text-gray-400">{c.total} tasks</span>
+                      <span className="flex items-center gap-2">
+                        <span className="text-green-600">{pct(c.passed, applicable(c))}% pass</span>
+                        <span className="text-red-600">{pct(c.bugs_found, applicable(c))}% fail</span>
+                        {c.na > 0 && <span className="text-slate-500">{c.na} N/A</span>}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+            {visibleGroups.length === 0 && (
+              <div className="col-span-full card p-8 text-center text-sm text-gray-500">
+                No {tab === 'addon' ? 'core add-ons' : 'modules'} here yet.
+                {!readOnly && ' Use “Add” above to create one.'}
+              </div>
+            )}
+          </div>
+          {removedCount > 0 && (
+            <button
+              onClick={() => setShowRemoved((v) => !v)}
+              className="mt-3 text-xs text-gray-400 hover:text-gray-700"
+            >
+              {showRemoved ? 'Hide removed' : `Show removed (${removedCount})`}
+            </button>
+          )}
+        </>
       ) : (
         /* ---------- Selected module detail ---------- */
         <ModuleDetail
@@ -294,6 +427,8 @@ export default function QAPlan({ readOnly = false }) {
           onDeleteTask={removeTask}
           onMove={moveTask}
           onRename={renameModule}
+          onDeleteModule={deleteModule}
+          onRestore={restoreModule}
           moduleOptions={moduleOptions}
           saving={saving}
           readOnly={readOnly}
@@ -326,6 +461,8 @@ function ModuleDetail({
   onDeleteTask,
   onMove,
   onRename,
+  onDeleteModule,
+  onRestore,
   moduleOptions,
   saving,
   readOnly,
@@ -333,6 +470,7 @@ function ModuleDetail({
   const [adding, setAdding] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState(module.title);
+  const kindLabel = module.kind === 'addon' ? 'core add-on' : 'module';
   const tasks = module.tasks.filter((t) => {
     if (filter === 'all') return true;
     return (statusMap[t.id]?.status || DEFAULT_STATUS) === filter;
@@ -388,17 +526,40 @@ function ModuleDetail({
           ) : (
             <>
               <h2 className="flex-1 text-lg font-semibold text-gray-700">{module.title}</h2>
+              {module.hidden && (
+                <span className="shrink-0 rounded-full bg-ink-700 px-2 py-0.5 text-[10px] font-semibold uppercase text-gray-500">
+                  removed
+                </span>
+              )}
               {!readOnly && (
-                <button
-                  onClick={() => {
-                    setTitleDraft(module.title);
-                    setRenaming(true);
-                  }}
-                  className="shrink-0 rounded-md px-2 py-1 text-xs text-gray-400 hover:bg-ink-700 hover:text-gray-800"
-                  title="Rename this module"
-                >
-                  ✎ Rename
-                </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    onClick={() => {
+                      setTitleDraft(module.title);
+                      setRenaming(true);
+                    }}
+                    className="rounded-md px-2 py-1 text-xs text-gray-400 hover:bg-ink-700 hover:text-gray-800"
+                    title={`Rename this ${kindLabel}`}
+                  >
+                    ✎ Rename
+                  </button>
+                  {module.hidden ? (
+                    <button
+                      onClick={() => onRestore(module.code)}
+                      className="rounded-md px-2 py-1 text-xs text-emerald-600 hover:bg-emerald-500/10"
+                    >
+                      ↺ Restore
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => onDeleteModule(module)}
+                      className="rounded-md px-2 py-1 text-xs text-gray-400 hover:bg-red-500/10 hover:text-red-600"
+                      title={module.custom ? `Delete this ${kindLabel}` : `Remove this ${kindLabel} from the plan`}
+                    >
+                      {module.custom ? '🗑 Delete' : '🗑 Remove'}
+                    </button>
+                  )}
+                </div>
               )}
             </>
           )}
@@ -473,6 +634,47 @@ function ModuleDetail({
 
 const PRIORITIES = ['P0', 'P1', 'P2', 'P3'];
 const TYPES = ['Functional', 'Integration', 'E2E', 'Security', 'UI/Visual', 'Performance', 'Other'];
+
+function AddModuleForm({ kind, onSave, onCancel }) {
+  const [title, setTitle] = useState('');
+  const [saving, setSaving] = useState(false);
+  const label = kind === 'addon' ? 'core add-on' : 'module';
+
+  async function save() {
+    if (!title.trim()) return;
+    setSaving(true);
+    try {
+      await onSave(title.trim());
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card mt-3 flex flex-wrap items-end gap-3 p-4">
+      <div className="min-w-[220px] flex-1">
+        <label className="label">New {label} name</label>
+        <input
+          className="input"
+          autoFocus
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') save();
+            if (e.key === 'Escape') onCancel();
+          }}
+          placeholder={kind === 'addon' ? 'e.g. Loyalty Points' : 'e.g. Mobile App'}
+        />
+      </div>
+      <button onClick={save} disabled={saving || !title.trim()} className="btn-primary py-2 px-4 text-sm">
+        {saving ? 'Adding…' : `Add ${label}`}
+      </button>
+      <button onClick={onCancel} className="btn-ghost py-2 px-4 text-sm">
+        Cancel
+      </button>
+    </div>
+  );
+}
 
 function AddCheckForm({ moduleTitle, onSave, onCancel }) {
   const [feature, setFeature] = useState('');
@@ -614,13 +816,26 @@ function TaskRow({ t, meta, onMark, onNote, onDelete, onMove, moduleOptions, cur
                   if (e.target.value !== currentCode) onMove(t, e.target.value);
                 }}
                 className="rounded-md border border-ink-600 bg-white px-1.5 py-1 text-xs text-gray-700"
-                title="Move this check to another module"
+                title="Move this check to another module or core add-on"
               >
-                {moduleOptions.map((m) => (
-                  <option key={m.code} value={m.code}>
-                    {m.code} · {m.title}
-                  </option>
-                ))}
+                <optgroup label="Modules">
+                  {moduleOptions
+                    .filter((m) => m.kind !== 'addon')
+                    .map((m) => (
+                      <option key={m.code} value={m.code}>
+                        {m.title}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="Core Add-ons">
+                  {moduleOptions
+                    .filter((m) => m.kind === 'addon')
+                    .map((m) => (
+                      <option key={m.code} value={m.code}>
+                        {m.title}
+                      </option>
+                    ))}
+                </optgroup>
               </select>
             </label>
           )}

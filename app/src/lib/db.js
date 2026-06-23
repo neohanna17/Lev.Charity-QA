@@ -447,6 +447,37 @@ export function setQaModuleTitle(code, title, user) {
   );
 }
 
+// Create a brand-new module or core add-on (kind: 'module' | 'addon'). Its doc
+// id becomes the module code used by checks. Built-ins live in qaPlan.js.
+export async function createQaModule(data) {
+  const ref = await addDoc(collection(db, 'qaModules'), {
+    title: data.title || 'Untitled module',
+    kind: data.kind === 'addon' ? 'addon' : 'module',
+    custom: true,
+    createdBy: data.createdBy || null,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function deleteQaModule(id) {
+  await deleteDoc(doc(db, 'qaModules', id));
+}
+
+// Hide (remove) or restore a BUILT-IN module/add-on. Custom ones are deleted
+// outright; built-ins can't be removed from code, so we flag them hidden.
+export function setQaModuleHidden(code, hidden, user) {
+  return setDoc(
+    doc(db, 'qaModules', code),
+    {
+      hidden: !!hidden,
+      updatedBy: user?.displayName || user?.email || null,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
 // A free-text note on a plan task (reason a test failed, repro steps, blockers,
 // context). Merged into the same qaStatus doc so it sits alongside the status.
 export function setQaNote(taskId, note, user) {

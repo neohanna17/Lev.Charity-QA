@@ -2,6 +2,17 @@
 // Static QA plan content: module headers and the tasks under each.
 // Task *statuses* are stored separately in Firestore (see db.js).
 
+// Core Add-ons — a second group of modules shown on their own tab. They ship
+// empty; QA adds checks to each (and can add more add-ons, or delete custom
+// ones). Codes are namespaced (CA*) so they never clash with module codes.
+export const CORE_ADDONS = [
+  { code: 'CA01', title: 'CRM', tasks: [] },
+  { code: 'CA02', title: 'Website Builder', tasks: [] },
+  { code: 'CA03', title: 'Email Manager', tasks: [] },
+  { code: 'CA04', title: 'Gamification', tasks: [] },
+  { code: 'CA05', title: 'Reports', tasks: [] },
+];
+
 export const QA_PLAN = [
   {
     code: '01',
