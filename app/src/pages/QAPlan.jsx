@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { QA_PLAN } from '../lib/qaPlan';
-import { watchQaStatus, setQaStatus, setQaNote } from '../lib/db';
+import {
+  watchQaStatus,
+  setQaStatus,
+  setQaNote,
+  watchQaTasks,
+  createQaTask,
+  deleteQaTask,
+} from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { timeAgo } from '../lib/format';
 
@@ -90,20 +97,32 @@ function ProgressBar({ counts, height = 'h-2.5' }) {
 export default function QAPlan({ readOnly = false }) {
   const { user } = useAuth();
   const [statusMap, setStatusMap] = useState({});
+  const [customTasks, setCustomTasks] = useState([]); // member-added checks
   const [selected, setSelected] = useState(null); // module code
   const [filter, setFilter] = useState('all'); // detail-view status filter
   const [saving, setSaving] = useState(null); // task id currently saving
 
   useEffect(() => watchQaStatus(setStatusMap), []);
+  useEffect(() => watchQaTasks(setCustomTasks), []);
 
-  const overall = useMemo(() => {
-    const all = QA_PLAN.flatMap((m) => m.tasks);
-    return tally(all, statusMap);
-  }, [statusMap]);
+  // Custom checks grouped by the module they were added to.
+  const customByModule = useMemo(() => {
+    const m = {};
+    for (const t of customTasks) (m[t.moduleCode] ||= []).push(t);
+    return m;
+  }, [customTasks]);
+
+  // A module's effective task list = built-in tasks + any custom checks added to it.
+  const tasksFor = (m) => [...m.tasks, ...(customByModule[m.code] || [])];
+
+  const overall = useMemo(
+    () => tally(QA_PLAN.flatMap(tasksFor), statusMap),
+    [statusMap, customByModule],
+  );
 
   const moduleStats = useMemo(
-    () => Object.fromEntries(QA_PLAN.map((m) => [m.code, tally(m.tasks, statusMap)])),
-    [statusMap],
+    () => Object.fromEntries(QA_PLAN.map((m) => [m.code, tally(tasksFor(m), statusMap)])),
+    [statusMap, customByModule],
   );
 
   async function saveNote(taskId, note) {
@@ -119,7 +138,22 @@ export default function QAPlan({ readOnly = false }) {
     }
   }
 
-  const current = selected ? QA_PLAN.find((m) => m.code === selected) : null;
+  async function addTask(moduleCode, data) {
+    await createQaTask({
+      moduleCode,
+      ...data,
+      createdBy: user?.displayName || user?.email || null,
+    });
+  }
+
+  async function removeTask(taskId) {
+    if (confirm('Delete this custom check? (Built-in checks can’t be deleted.)')) {
+      await deleteQaTask(taskId);
+    }
+  }
+
+  const currentBase = selected ? QA_PLAN.find((m) => m.code === selected) : null;
+  const current = currentBase ? { ...currentBase, tasks: tasksFor(currentBase) } : null;
 
   return (
     <div>
@@ -219,6 +253,8 @@ export default function QAPlan({ readOnly = false }) {
           onBack={() => setSelected(null)}
           onMark={mark}
           onNote={saveNote}
+          onAddTask={addTask}
+          onDeleteTask={removeTask}
           saving={saving}
           readOnly={readOnly}
         />
@@ -237,7 +273,21 @@ function Stat({ label, value, sub, tone }) {
   );
 }
 
-function ModuleDetail({ module, counts, statusMap, filter, setFilter, onBack, onMark, onNote, saving, readOnly }) {
+function ModuleDetail({
+  module,
+  counts,
+  statusMap,
+  filter,
+  setFilter,
+  onBack,
+  onMark,
+  onNote,
+  onAddTask,
+  onDeleteTask,
+  saving,
+  readOnly,
+}) {
+  const [adding, setAdding] = useState(false);
   const tasks = module.tasks.filter((t) => {
     if (filter === 'all') return true;
     return (statusMap[t.id]?.status || DEFAULT_STATUS) === filter;
@@ -275,20 +325,38 @@ function ModuleDetail({ module, counts, statusMap, filter, setFilter, onBack, on
         </div>
       </div>
 
-      {/* Status filter */}
-      <div className="mt-4 flex flex-wrap gap-1 rounded-lg border border-ink-600 bg-white p-1">
-        {FILTERS.map((f) => (
-          <button
-            key={f.value}
-            onClick={() => setFilter(f.value)}
-            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-              filter === f.value ? 'bg-brand/10 text-brand' : 'text-gray-500 hover:text-gray-800'
-            }`}
-          >
-            {f.label}
+      {/* Status filter + Add check */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-1 rounded-lg border border-ink-600 bg-white p-1">
+          {FILTERS.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => setFilter(f.value)}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                filter === f.value ? 'bg-brand/10 text-brand' : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        {!readOnly && !adding && (
+          <button onClick={() => setAdding(true)} className="btn-primary ml-auto py-1.5 px-3 text-xs">
+            + Add check
           </button>
-        ))}
+        )}
       </div>
+
+      {!readOnly && adding && (
+        <AddCheckForm
+          moduleTitle={module.title}
+          onCancel={() => setAdding(false)}
+          onSave={async (data) => {
+            await onAddTask(module.code, data);
+            setAdding(false);
+          }}
+        />
+      )}
 
       <div className="card mt-3 divide-y divide-ink-600">
         {tasks.length === 0 && (
@@ -301,6 +369,7 @@ function ModuleDetail({ module, counts, statusMap, filter, setFilter, onBack, on
             meta={statusMap[t.id]}
             onMark={onMark}
             onNote={onNote}
+            onDelete={onDeleteTask}
             saving={saving}
             readOnly={readOnly}
           />
@@ -310,7 +379,86 @@ function ModuleDetail({ module, counts, statusMap, filter, setFilter, onBack, on
   );
 }
 
-function TaskRow({ t, meta, onMark, onNote, saving, readOnly }) {
+const PRIORITIES = ['P0', 'P1', 'P2', 'P3'];
+const TYPES = ['Functional', 'Integration', 'E2E', 'Security', 'UI/Visual', 'Performance', 'Other'];
+
+function AddCheckForm({ moduleTitle, onSave, onCancel }) {
+  const [feature, setFeature] = useState('');
+  const [verify, setVerify] = useState('');
+  const [priority, setPriority] = useState('P2');
+  const [type, setType] = useState('Functional');
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (!feature.trim()) return;
+    setSaving(true);
+    try {
+      await onSave({ feature: feature.trim(), verify: verify.trim(), priority, type });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card mt-3 space-y-3 p-4">
+      <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+        New check · {moduleTitle}
+      </div>
+      <div>
+        <label className="label">What to check</label>
+        <input
+          className="input"
+          autoFocus
+          value={feature}
+          onChange={(e) => setFeature(e.target.value)}
+          placeholder="e.g. Recurring donation can be cancelled by the donor"
+        />
+      </div>
+      <div>
+        <label className="label">How to verify (optional)</label>
+        <textarea
+          className="input"
+          rows={2}
+          value={verify}
+          onChange={(e) => setVerify(e.target.value)}
+          placeholder="What you should see if it passes…"
+        />
+      </div>
+      <div className="flex flex-wrap gap-3">
+        <div>
+          <label className="label">Priority</label>
+          <select className="input max-w-[120px]" value={priority} onChange={(e) => setPriority(e.target.value)}>
+            {PRIORITIES.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="label">Type</label>
+          <select className="input max-w-[160px]" value={type} onChange={(e) => setType(e.target.value)}>
+            {TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={save} disabled={saving || !feature.trim()} className="btn-primary py-1.5 px-3 text-xs">
+          {saving ? 'Adding…' : 'Add check'}
+        </button>
+        <button onClick={onCancel} className="btn-ghost py-1.5 px-3 text-xs">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TaskRow({ t, meta, onMark, onNote, onDelete, saving, readOnly }) {
   const status = meta?.status || DEFAULT_STATUS;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(meta?.note || '');
@@ -332,7 +480,7 @@ function TaskRow({ t, meta, onMark, onNote, saving, readOnly }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-500">
-              {t.id}
+              {t.custom ? 'custom' : t.id}
             </span>
             {t.priority && (
               <span
@@ -344,6 +492,18 @@ function TaskRow({ t, meta, onMark, onNote, saving, readOnly }) {
               </span>
             )}
             {t.type && <span className="text-xs text-gray-400">{t.type}</span>}
+            {t.custom && t.createdBy && (
+              <span className="text-xs text-gray-400">· added by {t.createdBy}</span>
+            )}
+            {t.custom && !readOnly && onDelete && (
+              <button
+                onClick={() => onDelete(t.id)}
+                title="Delete this custom check"
+                className="ml-auto rounded px-1.5 py-0.5 text-xs text-gray-400 hover:bg-red-500/10 hover:text-red-600"
+              >
+                ✕
+              </button>
+            )}
           </div>
           <div className="mt-1 text-sm font-medium text-gray-800">{t.feature}</div>
           {t.verify && <div className="mt-0.5 text-xs text-gray-500">{t.verify}</div>}

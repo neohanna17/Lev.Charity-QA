@@ -371,6 +371,36 @@ export function setQaStatus(taskId, status, user) {
   );
 }
 
+// ---- QA Plan custom checks ----
+// The built-in plan (qaPlan.js) is static. Members can ADD extra checks to any
+// module; those live here, one doc per check, and are merged into their module
+// in the UI. Their own doc id doubles as the task id used for status/notes.
+
+export function watchQaTasks(cb) {
+  return onSnapshot(
+    collection(db, 'qaTasks'),
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, custom: true, ...d.data() }))),
+    () => cb([]), // degrade gracefully if rules aren't published yet
+  );
+}
+
+export async function createQaTask(data) {
+  const ref = await addDoc(collection(db, 'qaTasks'), {
+    moduleCode: data.moduleCode || '',
+    feature: data.feature || '',
+    verify: data.verify || '',
+    priority: data.priority || 'P2',
+    type: data.type || 'Functional',
+    createdBy: data.createdBy || null,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function deleteQaTask(id) {
+  await deleteDoc(doc(db, 'qaTasks', id));
+}
+
 // A free-text note on a plan task (reason a test failed, repro steps, blockers,
 // context). Merged into the same qaStatus doc so it sits alongside the status.
 export function setQaNote(taskId, note, user) {
